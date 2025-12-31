@@ -1,17 +1,22 @@
 import React from "react";
+import { Link } from "react-router-dom"; // 1. Added Link
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { MapPin, Clock, Users, Star, Briefcase, Calendar, Bookmark } from "lucide-react";
 
-export default function JobCard({ job, formatBudget, toggleSkill }) {
+export default function JobCard({ job, formatBudget }) { // Removed toggleSkill if not used here
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <CardTitle className="text-lg">{job.title}</CardTitle>
+              {/* 2. Wrap Title in a Link so it's clickable */}
+              <Link to={`/job/${job.id}`} className="hover:text-emerald-600 transition-colors">
+                <CardTitle className="text-lg">{job.title}</CardTitle>
+              </Link>
+              
               {job.featured && (
                 <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
                   Featured
@@ -24,7 +29,7 @@ export default function JobCard({ job, formatBudget, toggleSkill }) {
               <div className="text-emerald-600 font-semibold">{formatBudget(job)}</div>
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                {job.clientRating.toFixed(1)}
+                {job.clientRating?.toFixed(1) || "New"}
               </div>
             </div>
           </div>
@@ -33,8 +38,11 @@ export default function JobCard({ job, formatBudget, toggleSkill }) {
             Save
           </Button>
         </div>
-        <CardDescription className="text-base leading-relaxed">{job.description}</CardDescription>
+        <CardDescription className="text-base leading-relaxed line-clamp-2">
+          {job.description}
+        </CardDescription>
       </CardHeader>
+      
       <CardContent>
         <div className="flex flex-wrap gap-2 mb-4">
           {job.skills.slice(0, 5).map((skill, index) => (
@@ -42,15 +50,24 @@ export default function JobCard({ job, formatBudget, toggleSkill }) {
           ))}
           {job.skills.length > 5 && <Badge variant="outline">+{job.skills.length - 5} more</Badge>}
         </div>
+        
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
           <div className="flex items-center gap-1"><MapPin className="w-4 h-4" />{job.location}, {job.state}</div>
           <div className="flex items-center gap-1"><Clock className="w-4 h-4" />{job.timePosted}</div>
           <div className="flex items-center gap-1"><Briefcase className="w-4 h-4" />{job.experienceLevel}</div>
           <div className="flex items-center gap-1"><Calendar className="w-4 h-4" />{job.duration}</div>
         </div>
+        
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-1"><Users className="w-4 h-4 text-muted-foreground" /><span className="text-sm text-muted-foreground">{job.proposals} proposals</span></div>
-          <Button className="bg-emerald-600 hover:bg-emerald-700">Submit Proposal</Button>
+          <div className="flex items-center gap-1">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">{job.proposals} proposals</span>
+          </div>
+          
+          {/* 3. Link the Button to the Job Details Page */}
+          <Link to={`/job/${job.id}`}>
+            <Button className="bg-emerald-600 hover:bg-emerald-700">View & Apply</Button>
+          </Link>
         </div>
       </CardContent>
     </Card>

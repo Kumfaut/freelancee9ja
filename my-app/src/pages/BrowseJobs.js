@@ -1,251 +1,246 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Badge } from "../components/ui/Badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/Select";
-import { Checkbox } from "../components/ui/checkbox";
-import { Slider } from "../components/ui/Slider";
-import { Separator } from "../components/ui/separator";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "../components/ui/sheet";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
-import { 
-  Search, 
-  Filter, 
-  MapPin, 
-  Clock, 
-  DollarSign, 
-  Users, 
-  Bookmark, 
-  ChevronDown, 
-  Star,
-  Briefcase,
-  Calendar,
-  X
-} from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "../components/ui/Sheet";
+import { Search, Filter, MapPin, Star, Bookmark, X } from "lucide-react";
+import { Button } from "../components/ui/Button";
+import FiltersContent from "../components/FiltersContent";
+import Footer from "../components/Footer"; 
 
 export default function BrowseJobsPage() {
+  // --- STATE ---
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
   const [selectedState, setSelectedState] = useState("all");
   const [budgetRange, setBudgetRange] = useState([0, 500000]);
   const [selectedSkills, setSelectedSkills] = useState([]);
-  const [experienceLevel, setExperienceLevel] = useState("all");
-  const [projectDuration, setProjectDuration] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState({
-    category: true,
-    location: true,
-    budget: true,
-    skills: false,
-    experience: false,
-    duration: false
-  });
+  const [filtersOpen, setFiltersOpen] = useState({ category: true, location: true, budget: true, skills: true });
 
-  const jobs = [
-    // ... (same job data you already provided)
-  ];
-
-  const nigerianStates = [
-    "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
-    "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "Gombe", "Imo",
-    "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos State",
-    "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers",
-    "Sokoto", "Taraba", "Yobe", "Zamfara", "FCT Abuja"
-  ];
-
-  const allSkills = [
-    "React", "Vue.js", "Angular", "Node.js", "Python", "PHP", "Laravel", "WordPress",
-    "JavaScript", "TypeScript", "HTML/CSS", "MongoDB", "PostgreSQL", "MySQL",
-    "Adobe Illustrator", "Photoshop", "Figma", "Adobe XD", "Sketch",
-    "Content Writing", "SEO", "Blog Writing", "Copywriting", "Technical Writing",
-    "Social Media", "Content Creation", "Analytics", "Instagram Marketing", "Facebook Ads",
-    "Data Analysis", "Machine Learning", "SQL", "Pandas", "Visualization",
-    "Video Editing", "After Effects", "Premiere Pro", "Motion Graphics", "Animation",
-    "UI Design", "UX Research", "Prototyping", "User Testing", "Wireframing",
-    "Mobile Development", "React Native", "Flutter", "iOS", "Android",
-    "Digital Marketing", "Google Ads", "Email Marketing", "Lead Generation"
-  ];
-
+  // --- DATA ---
   const categories = [
     { value: "all", label: "All Categories" },
     { value: "web-development", label: "Web Development" },
     { value: "design", label: "Design & Creative" },
     { value: "writing", label: "Writing & Content" },
-    { value: "marketing", label: "Marketing & Sales" },
-    { value: "data-science", label: "Data Science & Analytics" },
-    { value: "video-audio", label: "Video & Audio" },
-    { value: "mobile-development", label: "Mobile Development" },
-    { value: "consulting", label: "Business Consulting" }
+    { value: "marketing", label: "Marketing" }
   ];
 
-  // Filter and sort jobs
-  const filteredJobs = useMemo(() => {
-    let filtered = jobs.filter(job => {
-      // Search query
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesTitle = job.title.toLowerCase().includes(query);
-        const matchesDescription = job.description.toLowerCase().includes(query);
-        const matchesSkills = job.skills.some(skill => skill.toLowerCase().includes(query));
-        if (!matchesTitle && !matchesDescription && !matchesSkills) return false;
-      }
+  const nigerianStates = ["Lagos State", "FCT Abuja", "Rivers", "Ogun", "Kano", "Enugu"];
+  const allSkills = ["React", "Node.js", "Figma", "Python", "Tailwind CSS", "Paystack", "WordPress", "SEO"];
 
-      // Category filter
-      if (selectedCategory !== "all" && job.category !== selectedCategory) return false;
-
-      // Location filter
-      if (selectedLocation !== "all" && !job.location.toLowerCase().includes(selectedLocation.toLowerCase())) return false;
-
-      // State filter
-      if (selectedState !== "all" && job.state !== selectedState) return false;
-
-      // Budget filter
-      if (job.budget.min > budgetRange[1] || job.budget.max < budgetRange[0]) return false;
-
-      // Skills filter
-      if (selectedSkills.length > 0) {
-        const hasMatchingSkill = selectedSkills.some(skill => 
-          job.skills.some(jobSkill => jobSkill.toLowerCase().includes(skill.toLowerCase()))
-        );
-        if (!hasMatchingSkill) return false;
-      }
-
-      // Experience level filter
-      if (experienceLevel !== "all" && job.experienceLevel !== experienceLevel) return false;
-
-      // Project duration filter
-      if (projectDuration !== "all" && job.duration !== projectDuration) return false;
-
-      return true;
-    });
-
-    // Sort jobs
-    switch (sortBy) {
-      case "budget-high":
-        filtered.sort((a, b) => b.budget.max - a.budget.max);
-        break;
-      case "budget-low":
-        filtered.sort((a, b) => a.budget.min - b.budget.min);
-        break;
-      case "proposals":
-        filtered.sort((a, b) => a.proposals - b.proposals);
-        break;
-      case "rating":
-        filtered.sort((a, b) => b.clientRating - a.clientRating);
-        break;
-      case "newest":
-      default:
-        filtered.sort((a, b) => b.postedDate.getTime() - a.postedDate.getTime());
-        break;
+  const jobs = useMemo(() => [
+    {
+      id: 1,
+      title: "E-commerce Website Development",
+      description: "Looking for an experienced developer to build a modern e-commerce platform with Paystack integration.",
+      budget: { min: 150000, max: 300000 },
+      skills: ["React", "Node.js", "Paystack"],
+      state: "Lagos State",
+      category: "web-development",
+      clientRating: 4.8
+    },
+    {
+      id: 2,
+      title: "UI/UX Design for Mobile App",
+      description: "Need a clean, modern design for a fintech application based in Abuja.",
+      budget: { min: 50000, max: 100000 },
+      skills: ["Figma", "UI Design"],
+      state: "FCT Abuja",
+      category: "design",
+      clientRating: 4.5
     }
+  ], []);
 
-    return filtered;
-  }, [searchQuery, selectedCategory, selectedLocation, selectedState, budgetRange, selectedSkills, experienceLevel, projectDuration, sortBy]);
-
+  // --- LOGIC ---
   const toggleSkill = (skill) => {
-    setSelectedSkills(prev => 
-      prev.includes(skill) 
-        ? prev.filter(s => s !== skill)
-        : [...prev, skill]
-    );
+    setSelectedSkills(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
   };
 
   const clearFilters = () => {
-    setSearchQuery("");
     setSelectedCategory("all");
-    setSelectedLocation("all");
     setSelectedState("all");
+    setSelectedLocation("all");
     setBudgetRange([0, 500000]);
     setSelectedSkills([]);
-    setExperienceLevel("all");
-    setProjectDuration("all");
   };
 
-  const formatBudget = (job) => {
-    const min = job.budget.min.toLocaleString();
-    const max = job.budget.max.toLocaleString();
-    const type = job.budget.type === "hourly" ? "/hr" : "";
-    return `₦${min} - ₦${max}${type}`;
-  };
-
-  const toggleFilterSection = (section) => {
-    setFiltersOpen(prev => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const FilterSection = ({ title, isOpen, onToggle, children }) => (
-    <Collapsible open={isOpen} onOpenChange={onToggle}>
-      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:text-emerald-600">
-        <span>{title}</span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-3 pb-4">
-        {children}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-
-  const FiltersContent = () => (
-    <div className="space-y-6">
-      {/* CATEGORY */}
-      <FilterSection title="Category" isOpen={filtersOpen.category} onToggle={() => toggleFilterSection('category')}>
-        <div className="space-y-2">
-          {categories.map(category => (
-            <div key={category.value} className="flex items-center space-x-2">
-              <Checkbox
-                id={`category-${category.value}`}
-                checked={selectedCategory === category.value}
-                onCheckedChange={() => setSelectedCategory(category.value)}
-              />
-              <label htmlFor={`category-${category.value}`} className="text-sm">{category.label}</label>
-            </div>
-          ))}
-        </div>
-      </FilterSection>
-
-      <Separator />
-
-      {/* STATE */}
-      <FilterSection title="Location" isOpen={filtersOpen.location} onToggle={() => toggleFilterSection('location')}>
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm font-medium mb-2 block">State</label>
-            <Select value={selectedState} onValueChange={setSelectedState}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select state" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All States</SelectItem>
-                {nigerianStates.map(state => (
-                  <SelectItem key={state} value={state}>{state}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-2 block">City</label>
-            <Input
-              placeholder="Enter city name"
-              value={selectedLocation === "all" ? "" : selectedLocation}
-              onChange={(e) => setSelectedLocation(e.target.value || "all")}
-            />
-          </div>
-        </div>
-      </FilterSection>
-
-      {/* ...repeat similar JS-compatible code for Budget, Skills, Experience, Duration */}
+  const filteredJobs = useMemo(() => {
+    return jobs.filter(job => {
+      const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === "all" || job.category === selectedCategory;
+      const matchesState = selectedState === "all" || job.state === selectedState;
+      const matchesBudget = job.budget.min >= budgetRange[0] && job.budget.max <= budgetRange[1];
+      const matchesSkills = selectedSkills.length === 0 || selectedSkills.some(s => job.skills.includes(s));
       
-      <Button onClick={clearFilters} variant="outline" className="w-full">Clear All Filters</Button>
-    </div>
-  );
+      return matchesSearch && matchesCategory && matchesState && matchesBudget && matchesSkills;
+    });
+  }, [jobs, searchQuery, selectedCategory, selectedState, budgetRange, selectedSkills]);
+
+  const filterProps = {
+    categories, selectedCategory, setSelectedCategory,
+    selectedState, setSelectedState, selectedLocation, setSelectedLocation,
+    selectedSkills, toggleSkill, allSkills, budgetRange, setBudgetRange,
+    nigerianStates, filtersOpen, setFiltersOpen, clearFilters,
+    toggleFilterSection: (s) => setFiltersOpen(prev => ({ ...prev, [s]: !prev[s] }))
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* ...rest of your JSX for search bar, desktop & mobile filters, job listings, etc. */}
+    <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
+      {/* Main Content Wrapper - flex-grow(changed to grow) ensures footer stays at bottom */}
+      <div className="grow p-4 lg:p-8">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+          
+          {/* Sidebar */}
+          <aside className="hidden lg:block w-72 shrink-0">
+            <Card className="sticky top-8 border-none shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2 font-bold">
+                  <Filter className="h-4 w-4 text-emerald-600" /> Filters
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FiltersContent {...filterProps} />
+              </CardContent>
+            </Card>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1 space-y-6">
+            <div className="flex flex-col gap-4">
+              <h1 className="text-3xl font-bold text-slate-900">Browse Jobs</h1>
+              
+              {/* Search Bar */}
+              <Card className="border-none shadow-sm">
+                <CardContent className="p-4 flex gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input 
+                      className="pl-10 border-slate-200 focus-visible:ring-emerald-500" 
+                      placeholder="Search by job title or keyword..." 
+                      value={searchQuery} 
+                      onChange={e => setSearchQuery(e.target.value)} 
+                    />
+                  </div>
+                  <Sheet>
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className="lg:hidden">
+                        <Filter className="h-4 w-4 mr-2" /> Filters
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="w-80">
+                      <SheetHeader>
+                        <SheetTitle>Refine Jobs</SheetTitle>
+                      </SheetHeader>
+                      <div className="mt-6">
+                        <FiltersContent {...filterProps} />
+                      </div>
+                    </SheetContent>
+                  </Sheet>
+                </CardContent>
+              </Card>
+
+              {/* Results Counter & Active Filters */}
+              <div className="flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-slate-500">
+                    Showing <span className="text-slate-900">{filteredJobs.length}</span> jobs found
+                  </p>
+                  {filteredJobs.length < jobs.length && (
+                    <Button variant="link" onClick={clearFilters} className="h-auto p-0 text-emerald-600 text-sm">
+                      Reset all
+                    </Button>
+                  )}
+                </div>
+
+                {(selectedCategory !== "all" || selectedState !== "all" || selectedSkills.length > 0) && (
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {selectedCategory !== "all" && (
+                      <Badge variant="secondary" className="bg-white border-slate-200 text-slate-700 py-1 pr-1 gap-1">
+                        {categories.find(c => c.value === selectedCategory)?.label}
+                        <X className="h-3 w-3 cursor-pointer hover:text-red-500" onClick={() => setSelectedCategory("all")} />
+                      </Badge>
+                    )}
+                    {selectedState !== "all" && (
+                      <Badge variant="secondary" className="bg-white border-slate-200 text-slate-700 py-1 pr-1 gap-1">
+                        {selectedState}
+                        <X className="h-3 w-3 cursor-pointer hover:text-red-500" onClick={() => setSelectedState("all")} />
+                      </Badge>
+                    )}
+                    {selectedSkills.map(s => (
+                      <Badge key={s} variant="secondary" className="bg-white border-slate-200 text-slate-700 py-1 pr-1 gap-1">
+                        {s}
+                        <X className="h-3 w-3 cursor-pointer hover:text-red-500" onClick={() => toggleSkill(s)} />
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Jobs List */}
+            <div className="space-y-4">
+              {filteredJobs.length === 0 ? (
+                <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
+                  <Search className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500">No jobs match your current filters.</p>
+                </div>
+              ) : (
+                filteredJobs.map(job => (
+                  <Card key={job.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <CardTitle className="text-xl text-slate-900 group-hover:text-emerald-600 transition-colors">
+                            {job.title}
+                          </CardTitle>
+                          <div className="flex items-center gap-3 text-sm text-slate-500">
+                            <span className="flex items-center gap-1 font-medium text-emerald-600">
+                              ₦{job.budget.min.toLocaleString()} - ₦{job.budget.max.toLocaleString()}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {job.state}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 text-yellow-600">
+                              <Star className="h-3 w-3 fill-current" /> {job.clientRating}
+                            </span>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" className="text-slate-400 hover:text-emerald-600">
+                          <Bookmark className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <CardDescription className="text-slate-600 line-clamp-2 mb-4">
+                        {job.description}
+                      </CardDescription>
+                      <div className="flex justify-between items-center">
+                        <div className="flex flex-wrap gap-2">
+                          {job.skills.map(skill => (
+                            <Badge key={skill} variant="outline" className="bg-slate-50 border-slate-200 text-slate-600 text-[11px]">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                        <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold px-6">Apply Now</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/* Footer is now inside the final return but outside the main content area */}
+      <Footer />
     </div>
   );
 }
+ 

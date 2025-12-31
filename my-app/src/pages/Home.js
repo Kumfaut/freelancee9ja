@@ -4,7 +4,7 @@ import Categories from "../components/Categories";
 import LatestJobs from "../components/LatestJobs";
 import TopFreelancers from "../components/TopFreelancers";
 import NigerianCities from "../components/NigerianCities";
-import { Footer } from "../components/Footer";
+import Footer from "../components/Footer";
 import { fetchUsers, registerUser, initializePayment } from "../api/api";
 
 export default function HomePage() {
