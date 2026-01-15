@@ -1,17 +1,16 @@
-import './output.css'; // <--- Keep it at the very top
+import './output.css'; 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
-import { BrowserRouter } from 'react-router-dom';
+// Removed: import { BrowserRouter } from 'react-router-dom'; <--- This was the unused line
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>
 );

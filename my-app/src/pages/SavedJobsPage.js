@@ -1,47 +1,64 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { fetchSavedJobs, toggleSaveJob } from "../api/api";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
+import { toast } from "sonner";
 import { 
-  Trash2, 
-  MapPin, 
-  Clock, 
-  Briefcase, 
-  ChevronRight,
-  Bookmark
+  Trash2, MapPin, Clock, Briefcase, 
+  ChevronRight, Bookmark, Loader2 
 } from "lucide-react";
 
 export default function SavedJobsPage() {
   const navigate = useNavigate();
+  const [savedJobs, setSavedJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data for saved jobs
-  const [savedJobs, setSavedJobs] = useState([
-    {
-      id: "1",
-      title: "React Developer for E-commerce Platform",
-      budget: "₦500k - ₦800k",
-      location: "Lagos (Remote)",
-      type: "Fixed Price",
-      posted: "2 days ago",
-      category: "Web Development"
-    },
-    {
-      id: "2",
-      title: "UI/UX Designer for Fintech App",
-      budget: "₦350k - ₦500k",
-      location: "Abuja (Hybrid)",
-      type: "Contract",
-      posted: "5 hours ago",
-      category: "Design"
+  const loadJobs = async () => {
+    try {
+      setLoading(true);
+      const response = await fetchSavedJobs();
+      
+      // Handle array vs nested data object
+      const jobsArray = Array.isArray(response.data) 
+        ? response.data 
+        : response.data?.data || [];
+      
+      console.log("Jobs to be set in state:", jobsArray);
+      setSavedJobs(jobsArray);
+    } catch (error) {
+      console.error("Error loading saved jobs:", error);
+      toast.error("Failed to load saved jobs");
+    } finally {
+      setLoading(false);
     }
-  ]);
-
-  const removeJob = (id) => {
-    setSavedJobs(savedJobs.filter(job => job.id !== id));
   };
+
+  useEffect(() => {
+    loadJobs();
+  }, []);
+
+  const handleRemove = async (jobId) => {
+    try {
+      await toggleSaveJob(jobId); 
+      // Filter by checking both id and job_id to ensure removal works
+      setSavedJobs(prev => prev.filter(job => (job.id || job.job_id) !== jobId));
+      toast.success("Job removed from saved list");
+    } catch (error) {
+      toast.error("Failed to remove job");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-10">
@@ -63,7 +80,6 @@ export default function SavedJobsPage() {
           </Button>
         </div>
 
-        {/* Empty State */}
         {savedJobs.length === 0 ? (
           <Card className="border-dashed border-2 bg-white/50 py-20">
             <CardContent className="flex flex-col items-center text-center">
@@ -74,74 +90,75 @@ export default function SavedJobsPage() {
               <p className="text-slate-500 max-w-xs mt-2">
                 Click the heart icon on any job posting to save it for later.
               </p>
-              <Button className="mt-6 bg-emerald-600" onClick={() => navigate("/search")}>
+              <Button className="mt-6 bg-emerald-600 text-white font-bold" onClick={() => navigate("/search")}>
                 Start Searching
               </Button>
             </CardContent>
           </Card>
         ) : (
-          /* Jobs List */
           <div className="space-y-4">
-            {savedJobs.map((job) => (
-              <Card key={job.id} className="group border-none shadow-sm hover:shadow-md transition-all">
-                <CardContent className="p-0">
-                  <div className="flex flex-col md:flex-row items-stretch md:items-center p-6 gap-6">
-                    
-                    {/* Job Info */}
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none px-2 py-0 text-[10px] font-bold uppercase">
-                          {job.category}
-                        </Badge>
-                        <span className="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
-                          <Clock className="w-3 h-3" /> {job.posted}
-                        </span>
-                      </div>
-                      
-                      <Link to={`/jobs/${job.id}`} className="block">
-                        <h3 className="text-lg font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
-                          {job.title}
-                        </h3>
-                      </Link>
+            {savedJobs.map((job) => {
+              // FIX: Catch both 'id' and 'job_id' and 'title' and 'job_title'
+              const displayId = job.job_id || job.id;
+              const displayTitle = job.title || job.job_title || "Untitled Job";
 
-                      <div className="flex flex-wrap gap-4 text-sm text-slate-500">
-                        <span className="flex items-center gap-1.5 font-medium italic text-emerald-600">
-                          {job.budget}
-                        </span>
-                        <span className="flex items-center gap-1.5 tracking-tight">
-                          <MapPin className="w-4 h-4 text-slate-300" /> {job.location}
-                        </span>
-                        <span className="flex items-center gap-1.5 tracking-tight">
-                          <Briefcase className="w-4 h-4 text-slate-300" /> {job.type}
-                        </span>
+              return (
+                <Card key={displayId} className="group border-none shadow-sm hover:shadow-md transition-all bg-white">
+                  <CardContent className="p-0">
+                    <div className="flex flex-col md:flex-row items-stretch md:items-center p-6 gap-6">
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-50 text-emerald-700 border-none px-2 py-0 text-[10px] font-bold uppercase">
+                            {job.category || "General"}
+                          </Badge>
+                          <span className="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
+                            <Clock className="w-3 h-3" /> 
+                            {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'Recent'}
+                          </span>
+                        </div>
+                        
+                        <Link to={`/job/${displayId}`} className="block">
+                          <h3 className="text-lg font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                            {displayTitle}
+                          </h3>
+                        </Link>
+
+                        <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                          <span className="flex items-center gap-1.5 font-medium italic text-emerald-600">
+                            ₦{Number(job.budget_max || job.budget || 0).toLocaleString()}
+                          </span>
+                          <span className="flex items-center gap-1.5 tracking-tight">
+                            <MapPin className="w-4 h-4 text-slate-300" /> {job.location || 'Remote'}
+                          </span>
+                          <span className="flex items-center gap-1.5 tracking-tight">
+                            <Briefcase className="w-4 h-4 text-slate-300" /> {job.experience_level || 'Any'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-slate-400 hover:text-red-500 hover:bg-red-50"
+                          onClick={() => handleRemove(displayId)}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
+                        <Button 
+                          className="bg-emerald-600 hover:bg-emerald-700 flex-1 md:flex-none gap-2 text-white font-bold"
+                          onClick={() => navigate(`/job/${displayId}`)}
+                        >
+                          Apply <ChevronRight className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-slate-400 hover:text-red-500 hover:bg-red-50"
-                        onClick={() => removeJob(job.id)}
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </Button>
-                      <Button 
-                        className="bg-emerald-600 hover:bg-emerald-700 flex-1 md:flex-none gap-2"
-                        onClick={() => navigate(`/jobs/${job.id}`)}
-                      >
-                        Apply <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
-
       </div>
     </div>
   );

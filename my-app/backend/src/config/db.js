@@ -1,4 +1,4 @@
-import mysql from "mysql2";
+import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -13,4 +13,5 @@ const db = mysql.createPool({
   queueLimit: 0
 });
 
-export default db.promise();
+// Just export db directly since it's already using the promise wrapper
+export default db;

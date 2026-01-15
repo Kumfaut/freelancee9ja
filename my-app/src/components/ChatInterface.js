@@ -1,259 +1,189 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import API from "../api/api";
+import { io } from "socket.io-client";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
-import { Badge } from "./ui/Badge";
 import { ScrollArea } from "./ui/ScrollArea";
-import { 
-  Send, Paperclip, 
-  Phone, Video, FileText,  X 
-} from "lucide-react";
+import { Send, Paperclip, ArrowLeft, Loader2 } from "lucide-react";
+
+const socket = io("http://localhost:5000", {
+  transports: ["websocket"],
+  withCredentials: true
+});
 
 export default function ChatInterface({ 
+  conversationId, 
   currentUser, 
   otherUser, 
-  projectTitle, 
-  projectBudget, 
-  onClose 
+  onBack 
 }) {
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      senderId: otherUser.id,
-      senderAvatar: otherUser.avatar,
-      content: "Hello! I'm interested in your project. I have 5+ years of experience in React development.",
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      type: "text",
-      status: "read",
-      isCurrentUser: false
-    },
-    {
-      id: "2",
-      senderId: currentUser.id,
-      senderAvatar: currentUser.avatar,
-      content: "Hi! Could you share some examples of your previous e-commerce work?",
-      timestamp: new Date(Date.now() - 1.5 * 60 * 60 * 1000),
-      type: "text",
-      status: "read",
-      isCurrentUser: true
-    },
-    {
-      id: "3",
-      senderId: otherUser.id,
-      senderAvatar: otherUser.avatar,
-      content: "Absolutely! I've attached my portfolio with recent projects.",
-      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000),
-      type: "file",
-      fileName: "Portfolio_ECommerce.pdf",
-      fileUrl: "#",
-      status: "read",
-      isCurrentUser: false
-    }
-  ]);
-
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const scrollRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const messagesEndRef = useRef(null); // Ref for bottom of list
 
-  // Auto-scroll logic
-  useEffect(() => {
-    if (scrollRef.current) {
-      const scrollElement = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollElement) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
+  const fetchMessages = useCallback(async () => {
+    if (!conversationId) return;
+    try {
+      setLoading(true);
+      const res = await API.get(`/messages/chat/${conversationId}`);
+      if (res.data.success) {
+        setMessages(res.data.messages);
       }
+    } catch (err) {
+      console.error("❌ Error loading messages:", err);
+    } finally {
+      setLoading(false);
     }
-  }, [messages, isTyping]);
+  }, [conversationId]);
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
-  };
+  useEffect(() => {
+    fetchMessages();
+    socket.emit("join_conversation", conversationId);
 
-  const handleSendMessage = (e) => {
+    const handleNewMessage = (data) => {
+      if (String(data.conversation_id) === String(conversationId)) {
+        setMessages((prev) => {
+          const isDuplicate = prev.some(m => m.id === data.id);
+          return isDuplicate ? prev : [...prev, data];
+        });
+      }
+    };
+
+    socket.on("new_message", handleNewMessage);
+    return () => socket.off("new_message", handleNewMessage);
+  }, [conversationId, fetchMessages]);
+
+  // Reliable Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
-    if (!newMessage.trim()) return;
-
-    const message = {
-      id: Date.now().toString(),
-      senderId: currentUser.id,
-      senderAvatar: currentUser.avatar,
-      content: newMessage.trim(),
-      timestamp: new Date(),
-      type: "text",
-      status: "sent",
-      isCurrentUser: true
-    };
-
-    setMessages(prev => [...prev, message]);
-    setNewMessage("");
-
-    // Mock: Simulate client typing and replying
-    setTimeout(() => setIsTyping(true), 1000);
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages(prev => prev.map(msg => msg.id === message.id ? { ...msg, status: "read" } : msg));
-    }, 3000);
+    
+    // 1. Capture the message and trim it
+    const messageContent = newMessage.trim();
+    
+    // 2. Safety check
+    if (!messageContent || !currentUser?.id) return;
+  
+    // 3. IMMEDIATELY clear the input field so the user sees it's "sent"
+    setNewMessage(""); 
+  
+    try {
+      // 4. Send to API
+      await API.post("/messages/send", {
+        conversation_id: conversationId,
+        receiver_id: otherUser.id,
+        message_text: messageContent
+      });
+      
+      // We don't manually setMessages here because the 
+      // Socket.io listener 'new_message' will do it for us.
+    } catch (err) {
+      console.error("❌ Failed to send message:", err);
+      setNewMessage(messageContent);
+      // 5. OPTIONAL: If it fails, put the text back so they don't lose it
+      setNewMessage(messageContent); 
+      alert("Message failed to send. Please try again.");
+    }
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const message = {
-      id: Date.now().toString(),
-      senderId: currentUser.id,
-      senderAvatar: currentUser.avatar,
-      content: `Shared: ${file.name}`,
-      timestamp: new Date(),
-      type: "file",
-      fileName: file.name,
-      fileUrl: URL.createObjectURL(file),
-      status: "sent",
-      isCurrentUser: true
-    };
-
-    setMessages(prev => [...prev, message]);
+  const formatTime = (dateStr) => {
+    if (!dateStr) return "Just now";
+    return new Date(dateStr).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-[#F8FAFC] overflow-hidden">
       {/* HEADER */}
-      <div className="bg-white border-b border-slate-200 p-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold border-2 border-white shadow-sm">
-                {otherUser.avatar}
-              </div>
-              {otherUser.isOnline && (
-                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-              )}
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm">{otherUser.name}</h3>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {otherUser.isOnline ? "Online Now" : "Away"}
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-emerald-600"><Phone className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-emerald-600"><Video className="h-4 w-4" /></Button>
-            {onClose && (
-              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-red-500" onClick={onClose}><X className="h-4 w-4" /></Button>
-            )}
-          </div>
-        </div>
-
-        {/* PROJECT INFO CARD */}
-        <div className="mt-4 p-3 bg-white border border-emerald-100 rounded-xl flex items-center justify-between shadow-sm">
-          <div>
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Active Project</h4>
-            <p className="text-sm font-semibold text-emerald-700">{projectTitle}</p>
-          </div>
-          {projectBudget && <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">{projectBudget}</Badge>}
-        </div>
-      </div>
-
-      {/* MESSAGES AREA */}
-      
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-6">
-          {messages.map((msg) => {
-            const isMe = msg.isCurrentUser;
-            return (
-              <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
-                <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-[10px] font-bold">
-                  {msg.senderAvatar}
-                </div>
-                
-                <div className={`flex flex-col gap-1 max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
-                  <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
-                    isMe ? "bg-emerald-600 text-white rounded-tr-none" : "bg-white text-slate-700 border border-slate-100 rounded-tl-none"
-                  }`}>
-                    {msg.type === "file" ? (
-                      <div className="flex items-center gap-3 py-1">
-                        <div className={`p-2 rounded-lg ${isMe ? "bg-emerald-500" : "bg-emerald-50"}`}>
-                          <FileText className={`h-5 w-5 ${isMe ? "text-white" : "text-emerald-600"}`} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs truncate max-w-[120px]">{msg.fileName}</p>
-                          <button className={`text-[10px] font-bold underline ${isMe ? "text-emerald-100" : "text-emerald-600"}`}>Download</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="leading-relaxed">{msg.content}</p>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                    <span>{formatTime(msg.timestamp)}</span>
-                    {isMe && (
-                      <span className={msg.status === "read" ? "text-emerald-500" : ""}>
-                        {msg.status === "sent" ? "•" : msg.status === "delivered" ? "✓" : "✓✓"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          
-          {isTyping && (
-            <div className="flex gap-2 items-center text-slate-400 italic text-[11px] animate-pulse">
-              <div className="flex gap-1">
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" />
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]" />
-              </div>
-              {otherUser.name} is typing...
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-
-      {/* INPUT AREA */}
-      <div className="p-4 bg-white border-t border-slate-200">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <input 
-            ref={fileInputRef} 
-            type="file" 
-            className="hidden" 
-            onChange={handleFileUpload}
-            accept=".pdf,.doc,.docx,.jpg,.png" 
-          />
-          <Button 
-            type="button" 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full text-slate-400 shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Paperclip className="h-5 w-5" />
+      <header className="bg-white border-b border-slate-100 p-4 shrink-0 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden">
+            <ArrowLeft className="h-5 w-5" />
           </Button>
           
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-100 overflow-hidden uppercase">
+               {otherUser.avatar?.length > 1 ? (
+                 <img src={otherUser.avatar} alt="" className="object-cover w-full h-full" />
+               ) : (otherUser.avatar || otherUser.name?.charAt(0))}
+            </div>
+            <div>
+              <h3 className="font-black text-slate-900 text-sm leading-tight">{otherUser.name}</h3>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Live Discussion</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* MESSAGES AREA - Fixed Scroll Implementation */}
+      <div className="flex-1 min-h-0 relative">
+        <ScrollArea className="h-full w-full">
+          <div className="p-6 space-y-6">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center p-10 space-y-3 opacity-50">
+                <Loader2 className="animate-spin text-emerald-500 w-6 h-6" />
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Connecting...</p>
+              </div>
+            ) : (
+              <>
+                {messages.map((msg, index) => {
+                  const isMe = String(msg.sender_id) === String(currentUser?.id);
+                  return (
+                    <div key={msg.id || index} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                      <div className={`flex flex-col gap-1 max-w-[80%] ${isMe ? "items-end" : "items-start"}`}>
+                        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all ${
+                          isMe 
+                          ? "bg-emerald-600 text-white rounded-tr-none font-medium" 
+                          : "bg-white text-slate-700 border border-slate-100 rounded-tl-none font-medium"
+                        }`}>
+                          {msg.message_text}
+                        </div>
+                        <div className="flex items-center gap-1.5 px-1">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">
+                            {formatTime(msg.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Scroll Anchor */}
+                <div ref={messagesEndRef} />
+              </>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* INPUT AREA */}
+      <footer className="p-6 bg-white border-t border-slate-100 shrink-0">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+          <Button type="button" variant="ghost" size="icon" className="text-slate-400 hover:text-emerald-600">
+            <Paperclip className="h-5 w-5" />
+          </Button>
           <Input
-            placeholder="Write a message..."
+            placeholder="Type your message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            className="flex-1 bg-slate-50 border-none rounded-xl focus-visible:ring-emerald-500 h-11"
+            className="flex-1 bg-slate-50 border-none rounded-2xl h-12 px-5 focus-visible:ring-emerald-500 font-medium text-slate-700"
           />
-
           <Button 
             type="submit" 
             disabled={!newMessage.trim()}
-            className="bg-emerald-600 hover:bg-emerald-700 rounded-xl h-11 w-11 p-0 shrink-0"
+            className="bg-emerald-600 hover:bg-emerald-700 rounded-2xl h-12 w-12 p-0 shadow-lg shadow-emerald-100 active:scale-95 transition-all"
           >
             <Send className="h-5 w-5 text-white" />
           </Button>
         </form>
-        <p className="text-[10px] text-center text-slate-400 mt-3 font-medium">
-          Always communicate here to protect your 🇳🇬 payments.
-        </p>
-      </div>
+      </footer>
     </div>
   );
 }

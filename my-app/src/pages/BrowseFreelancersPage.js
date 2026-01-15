@@ -1,71 +1,74 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Badge } from "../components/ui/Badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/Select";
-import { Search, MapPin, Star, Clock, Briefcase } from "lucide-react";
+import { Search, MapPin, Star, Briefcase, Loader2 } from "lucide-react";
 import ChatButton from "../components/ChatButton";
 import Footer from "../components/Footer";
+import { fetchUsers } from "../api/api";
+
 
 export default function BrowseFreelancersPage() {
   // --- STATE ---
+  const navigate = useNavigate();
+  const [allFreelancers, setAllFreelancers] = useState([]); // Database data
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
   const [sortBy, setSortBy] = useState("rating");
+  
 
-  // --- DATA ---
-  // --- LOGIC ---
-  // --- LOGIC ---
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedCategory("all");
-    setSelectedLocation("all");
-  };
+  // --- FETCH LIVE DATA ---
+  useEffect(() => {
+    const loadFreelancers = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetchUsers();
+        
+        // 1. Filter for only users with 'freelancer' role
+        // 2. Map database fields to UI property names
+        const liveData = response.data
+          .filter((user) => user.role === "freelancer")
+          .map((f) => ({
+            id: f.id,
+            name: f.full_name,
+            title: f.title || "Professional Freelancer",
+            avatar: f.full_name ? f.full_name.charAt(0).toUpperCase() : "U",
+            rating: f.rating || 5.0, // Default if not in DB yet
+            reviews: f.reviews || 0,
+            hourlyRate: f.hourlyRate || 0,
+            location: f.location || "Nigeria",
+            description: f.bio || "No bio provided yet.",
+            skills: f.skills ? f.skills.split(",") : ["Expert"],
+            category: f.category || "web-development",
+            completedJobs: f.completedJobs || 0,
+            responseTime: "2 hours",
+          }));
+
+        setAllFreelancers(liveData);
+      } catch (error) {
+        console.error("Error fetching freelancers:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFreelancers();
+  }, []);
+
+  // --- FILTER & SORT LOGIC ---
   const filteredFreelancers = useMemo(() => {
-    // 1. Move the data inside so it doesn't trigger the Hook unnecessarily
-    const freelancers = [
-      {
-        id: 1,
-        name: "Adebayo Okafor",
-        title: "Full Stack Developer",
-        avatar: "AO",
-        rating: 4.9,
-        reviews: 127,
-        hourlyRate: 3500,
-        location: "Lagos, Nigeria",
-        description: "Experienced full-stack developer specializing in React, Node.js, and cloud deployments.",
-        skills: ["React", "Node.js", "AWS", "MongoDB", "TypeScript"],
-        category: "web-development",
-        completedJobs: 89,
-        responseTime: "2 hours",
-      },
-      {
-        id: 2,
-        name: "Fatima Aliyu",
-        title: "UI/UX Designer",
-        avatar: "FA",
-        rating: 5.0,
-        reviews: 94,
-        hourlyRate: 2800,
-        location: "Abuja, Nigeria",
-        description: "Creative designer with 5+ years experience in mobile and web app design.",
-        skills: ["Figma", "Adobe XD", "Prototyping", "User Research"],
-        category: "design",
-        completedJobs: 76,
-        responseTime: "1 hour",
-      },
-      // ... rest of your freelancer objects
-    ];
-
-    // 2. Perform the filtering and sorting
-    return freelancers
+    return allFreelancers
       .filter((f) => {
-        const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                             f.title.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = 
+          f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          f.title.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = selectedCategory === "all" || f.category === selectedCategory;
         const matchesLocation = selectedLocation === "all" || f.location.includes(selectedLocation);
         return matchesSearch && matchesCategory && matchesLocation;
@@ -77,11 +80,16 @@ export default function BrowseFreelancersPage() {
         if (sortBy === "reviews") return b.reviews - a.reviews;
         return 0;
       });
-  }, [searchQuery, selectedCategory, selectedLocation, sortBy]); // Notice 'freelancers' is no longer needed here
+  }, [allFreelancers, searchQuery, selectedCategory, selectedLocation, sortBy]);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSelectedLocation("all");
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
-      {/* Main Content Wrapper */}
       <div className="grow px-4 py-8 lg:py-12">
         <div className="max-w-7xl mx-auto">
           
@@ -89,8 +97,7 @@ export default function BrowseFreelancersPage() {
           <div className="mb-8 space-y-2">
             <h1 className="text-3xl font-bold text-slate-900">Find Top Freelancers</h1>
             <p className="text-slate-500 max-w-2xl">
-              Hire vetted Nigerian professionals for your next project. 
-              Filter by skill, location, or rating to find the perfect match.
+              Hire vetted Nigerian professionals for your next project.
             </p>
           </div>
 
@@ -101,7 +108,7 @@ export default function BrowseFreelancersPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
-                    placeholder="Search by name or skill..."
+                    placeholder="Search name or skill..."
                     className="pl-10 border-slate-200 focus-visible:ring-emerald-500"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -140,130 +147,125 @@ export default function BrowseFreelancersPage() {
             </CardContent>
           </Card>
 
-          {/* Results Metadata */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-600">
-                Found {filteredFreelancers.length} available freelancers
-              </span>
-              {(selectedCategory !== "all" || selectedLocation !== "all" || searchQuery !== "") && (
-                 <Button variant="ghost" onClick={clearFilters} className="h-8 text-xs text-red-500 hover:text-red-600">
-                    Reset Filters
-                 </Button>
+          {/* Loading State */}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+              <Loader2 className="h-12 w-12 text-emerald-600 animate-spin" />
+              <p className="text-slate-500">Fetching talent from across Nigeria...</p>
+            </div>
+          ) : (
+            <>
+              {/* Results Metadata */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-slate-600">
+                    Found {filteredFreelancers.length} available freelancers
+                  </span>
+                  {(selectedCategory !== "all" || selectedLocation !== "all" || searchQuery !== "") && (
+                     <Button variant="ghost" onClick={clearFilters} className="h-8 text-xs text-red-500 hover:text-red-600">
+                        Reset Filters
+                     </Button>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-slate-500">Sort by:</span>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-40 border-none bg-transparent font-semibold focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rating">Highest Rated</SelectItem>
+                      <SelectItem value="rate-low">Lowest Rate</SelectItem>
+                      <SelectItem value="rate-high">Highest Rate</SelectItem>
+                      <SelectItem value="reviews">Most Reviews</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Freelancer Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredFreelancers.map((freelancer) => (
+                  <Card key={freelancer.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 font-bold text-xl border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                            {freelancer.avatar}
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg text-slate-900">{freelancer.name}</CardTitle>
+                            <p className="text-emerald-600 text-xs font-semibold uppercase tracking-wider">{freelancer.title}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 mt-3">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="text-sm font-bold text-slate-700">{freelancer.rating}</span>
+                        <span className="text-xs text-slate-400">({freelancer.reviews} reviews)</span>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                      <CardDescription className="text-slate-600 text-sm line-clamp-3 h-15">
+                        {freelancer.description}
+                      </CardDescription>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {freelancer.skills.slice(0, 3).map((skill) => (
+                          <Badge key={skill} variant="outline" className="bg-slate-50 border-slate-100 text-slate-500 text-[10px]">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-y-2 pt-2 border-t border-slate-50">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <MapPin className="h-3.5 w-3.5" /> {freelancer.location.split(',')[0]}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Briefcase className="h-3.5 w-3.5" /> {freelancer.completedJobs} jobs
+                        </div>
+                        <div className="text-emerald-700 font-bold text-sm">
+                          ₦{freelancer.hourlyRate.toLocaleString()}/hr
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1 border-slate-200 text-slate-700 hover:bg-slate-50"
+                        onClick={() => navigate(`/profile/${freelancer.id}`)} // This triggers the navigation
+                      >
+                        View Profile
+                      </Button>
+                        <ChatButton
+                          otherUser={{
+                            id: freelancer.id.toString(),
+                            name: freelancer.name,
+                            avatar: freelancer.avatar,
+                            role: "freelancer",
+                          }}
+                          projectTitle="General Inquiry"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Empty State */}
+              {filteredFreelancers.length === 0 && (
+                 <div className="text-center py-24">
+                    <p className="text-slate-400">No freelancers found matching your criteria.</p>
+                    <Button variant="link" onClick={clearFilters} className="text-emerald-600">Clear all filters</Button>
+                 </div>
               )}
-            </div>
-            
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-500">Sort by:</span>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-40 border-none bg-transparent font-semibold focus:ring-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="rating">Highest Rated</SelectItem>
-                  <SelectItem value="rate-low">Lowest Rate</SelectItem>
-                  <SelectItem value="rate-high">Highest Rate</SelectItem>
-                  <SelectItem value="reviews">Most Reviews</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Freelancer Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredFreelancers.map((freelancer) => (
-              <Card key={freelancer.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 font-bold text-xl border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                        {freelancer.avatar}
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg text-slate-900">{freelancer.name}</CardTitle>
-                        <p className="text-emerald-600 text-xs font-semibold uppercase tracking-wider">{freelancer.title}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 mt-3">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm font-bold text-slate-700">{freelancer.rating}</span>
-                    <span className="text-xs text-slate-400">({freelancer.reviews} reviews)</span>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <CardDescription className="text-slate-600 text-sm line-clamp-3 h-15">
-                    {freelancer.description}
-                  </CardDescription>
-
-                  <div className="flex flex-wrap gap-1.5">
-                    {freelancer.skills.slice(0, 3).map((skill) => (
-                      <Badge key={skill} variant="outline" className="bg-slate-50 border-slate-100 text-slate-500 text-[10px]">
-                        {skill}
-                      </Badge>
-                    ))}
-                    {freelancer.skills.length > 3 && (
-                      <Badge variant="outline" className="bg-slate-50 border-slate-100 text-slate-500 text-[10px]">
-                        +{freelancer.skills.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-y-2 pt-2 border-t border-slate-50">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <MapPin className="h-3.5 w-3.5" /> {freelancer.location.split(',')[0]}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <Briefcase className="h-3.5 w-3.5" /> {freelancer.completedJobs} jobs
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <Clock className="h-3.5 w-3.5" /> {freelancer.responseTime}
-                    </div>
-                    <div className="text-emerald-700 font-bold text-sm">
-                      ₦{freelancer.hourlyRate.toLocaleString()}/hr
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="outline" className="flex-1 border-slate-200 text-slate-700 hover:bg-slate-50">
-                      View Profile
-                    </Button>
-                    <ChatButton
-                      otherUser={{
-                        id: freelancer.id.toString(),
-                        name: freelancer.name,
-                        avatar: freelancer.avatar,
-                        role: "freelancer",
-                        isOnline: Math.random() > 0.5,
-                      }}
-                      projectTitle="General Inquiry"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Empty State */}
-          {filteredFreelancers.length === 0 && (
-             <div className="text-center py-24">
-                <p className="text-slate-400">No freelancers found matching your criteria.</p>
-                <Button variant="link" onClick={clearFilters} className="text-emerald-600">Clear all filters</Button>
-             </div>
-          )}
-
-          {/* Load More */}
-          {filteredFreelancers.length > 0 && (
-            <div className="text-center mt-16">
-              <Button variant="outline" size="lg" className="rounded-full px-8 border-slate-200 text-slate-600">
-                Load More Professionals
-              </Button>
-            </div>
+            </>
           )}
         </div>
       </div>
-
       <Footer />
     </div>
   );

@@ -1,191 +1,236 @@
 "use client";
 
-import React, { useState } from "react";
-import { Wallet, Bell, User, Settings, LogOut, ChevronDown, Menu, X, Heart } from "lucide-react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import axios from "axios";
+import { 
+  Wallet, Bell, User, Settings, LogOut, 
+  ChevronDown, Menu, Heart, X, Briefcase,
+  PlusCircle, LayoutDashboard, MessageSquare, Search,
+  FolderKanban
+} from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "./ui/Button";
 import { Avatar, AvatarFallback } from "./ui/Avatar";
 import { NotificationsDropdown } from "./NotificationsDropdown";
-import { useAuth } from "../context/AuthContext"; // 1. Ensure this path is correct
+import { useAuth } from "../context/AuthContext";
+import { io } from "socket.io-client";
+
+// Maintain a single socket instance
+const socket = io("http://localhost:5000", {
+  transports: ["websocket"],
+  withCredentials: true
+});
 
 export function Navbar() {
-  // 2. Grab auth state and logout from context
-  const { user, logout, isLoggedIn } = useAuth(); 
-  
+  const { user, logout, isLoggedIn, setUser } = useAuth(); 
   const navigate = useNavigate();
   const location = useLocation();
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   
-  // 3. Dynamic role and login status
-  const userType = user?.role || "freelancer"; 
-  const unreadCount = 3; 
+  const profileRef = useRef(null);
+  const notifRef = useRef(null);
+
+  const userType = user?.role || "freelancer";
+
+  // 1. SYNC USER DATA (Wallet & Profile)
+  const refreshUserData = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get("http://localhost:5000/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setUser(res.data.user); // Updates the wallet balance globally
+      }
+    } catch (err) {
+      console.error("❌ Failed to sync profile data:", err);
+    }
+  }, [isLoggedIn, setUser]);
+
+  // 2. FETCH INITIAL UNREAD COUNT
+  const fetchUnreadCount = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get("http://localhost:5000/api/notifications/unread-count", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setUnreadCount(res.data.unreadCount);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching unread count:", err);
+    }
+  }, [isLoggedIn]);
+
+  // 3. REAL-TIME SOCKET LOGIC
+  useEffect(() => {
+    if (isLoggedIn && user?.id) {
+      // Refresh balance and counts on mount
+      refreshUserData();
+      fetchUnreadCount();
+
+      // Join personal room for targeted pings
+      socket.emit("join_personal_room", user.id);
+
+      // Listen for instant notifications
+      socket.on("new_notification", (data) => {
+        setUnreadCount((prev) => prev + 1);
+        
+        // IF PAYMENT/WALLET RELATED: Trigger a wallet refresh
+        if (["payment", "deposit", "withdrawal", "milestone_released"].includes(data.type)) {
+          refreshUserData();
+        }
+      });
+
+      // Listen for message-specific sidebar pings
+      socket.on("inbox_update", () => {
+        // Optional: Could trigger a silent fetch if needed
+      });
+    }
+
+    return () => {
+      socket.off("new_notification");
+      socket.off("inbox_update");
+    };
+  }, [isLoggedIn, user?.id, refreshUserData, fetchUnreadCount]);
+
+  // 4. CLICK OUTSIDE HANDLERS
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) setIsProfileOpen(false);
+      if (notifRef.current && !notifRef.current.contains(event.target)) setIsNotifOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getInitials = useMemo(() => {
+    const displayName = user?.full_name || user?.name || "User";
+    return displayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  }, [user]);
 
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 shrink-0">
-          <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">N</span>
+        {/* LOGO */}
+        <Link to="/" className="flex items-center gap-3 shrink-0 group">
+          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200 group-hover:rotate-3 transition-transform">
+            <span className="text-white font-black text-2xl tracking-tighter">N</span>
           </div>
-          <span className="text-xl font-bold bg-linear-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent hidden sm:block">
-            NaijaFreelance
-          </span>
+          <div className="flex-col justify-center -space-y-1 hidden sm:flex">
+            <span className="text-lg font-black text-slate-900 tracking-tighter leading-tight">NaijaFreelance</span>
+            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest leading-tight">
+               {userType === "client" ? "Employer Hub" : "Marketplace"}
+            </span>
+          </div>
         </Link>
 
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-8">
+        {/* DESKTOP NAV */}
+        <div className="hidden md:flex items-center gap-1">
           {!isLoggedIn ? (
-            /* GUEST LINKS */
-            <>
-              <Link to="/browse-jobs" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/browse-jobs') ? 'text-emerald-600' : 'text-slate-600'}`}>
-                Browse Jobs
-              </Link>
-              <Link to="/browse-freelancers" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/browse-freelancers') ? 'text-emerald-600' : 'text-slate-600'}`}>
-                Find Talent
-              </Link>
-            </>
-          ) : userType === "freelancer" ? (
-            /* FREELANCER LINKS */
-            <>
-              <Link to="/search" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/search') ? 'text-emerald-600' : 'text-slate-600'}`}>
-                Find Work
-              </Link>
-              <Link to="/proposals" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/proposals') ? 'text-emerald-600' : 'text-slate-600'}`}>
-                My Proposals
-              </Link>
-            </>
+            <div className="flex items-center gap-6">
+              <NavLink to="/browse-jobs">Browse Jobs</NavLink>
+              <NavLink to="/browse-freelancers">Find Talent</NavLink>
+            </div>
           ) : (
-            /* CLIENT LINKS */
-            <>
-              <Link to="/post-job" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/post-job') ? 'text-emerald-600' : 'text-slate-600'}`}>
-                Post a Job
-              </Link>
-              <Link to="/client-dashboard" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/client-dashboard') ? 'text-emerald-600' : 'text-slate-600'}`}>
-                My Job Posts
-              </Link>
-              <Link to="/hired-freelancers" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/hired-freelancers') ? 'text-emerald-600' : 'text-slate-600'}`}>
-                Manage Team
-              </Link>
-            </>
-          )}
-
-          {/* COMMON LINK (Visible to anyone logged in) */}
-          {isLoggedIn && (
-            <Link to="/messages" className={`text-sm font-medium transition-colors hover:text-emerald-600 ${isActive('/messages') ? 'text-emerald-600' : 'text-slate-600'}`}>
-              Messages
-            </Link>
+            <div className="flex items-center gap-1">
+              {userType === "client" ? (
+                <>
+                  <NavLink to="/client-dashboard" active={isActive('/client-dashboard')} icon={<LayoutDashboard size={16}/>}>Dashboard</NavLink>
+                  <NavLink to="/post-job" active={isActive('/post-job')} icon={<PlusCircle size={16}/>}>Post Job</NavLink>
+                  <NavLink to="/my-projects" active={isActive('/my-projects')} icon={<FolderKanban size={16}/>}>My Projects</NavLink>
+                </>
+              ) : (
+                <>
+                  <NavLink to="/search" active={isActive('/search')} icon={<Search size={16}/>}>Find Work</NavLink>
+                  <NavLink to="/proposals" active={isActive('/proposals')} icon={<MessageSquare size={16}/>}>Proposals</NavLink>
+                  <NavLink to="/my-projects" active={isActive('/my-projects')} icon={<Briefcase size={16}/>}>My Projects</NavLink>
+                </>
+              )}
+              <div className="w-px h-6 bg-slate-200 mx-2" />
+              <NavLink to="/messages" active={isActive('/messages')} icon={<MessageSquare size={16}/>}>Messages</NavLink>
+            </div>
           )}
         </div>
-        {/* Right Side Actions */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          {isLoggedIn ? (
-            <>
-              {/* WALLET LINK - Only for Freelancers */}
-              {userType === "freelancer" && (
-                <Link 
-                  to="/wallet" 
-                  className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full transition-all border ${
-                    isActive('/wallet') 
-                    ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
-                    : 'bg-slate-50 border-transparent hover:bg-slate-100'
-                  }`}
-                >
-                  <Wallet className={`w-4 h-4 ${isActive('/wallet') ? 'text-emerald-600' : 'text-slate-500'}`} />
-                  <span className="text-sm font-bold text-slate-700 font-mono">₦856k</span>
-                </Link>
-              )}
 
-              {/* NOTIFICATION BELL */}
-              <div className="relative">
+        {/* ACTIONS */}
+        <div className="flex items-center gap-3">
+          {isLoggedIn ? (
+            <div className="flex items-center gap-3">
+                {/* WALLET (Now auto-syncs) */}
+                <Link to="/wallet" className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100 hover:border-emerald-200 transition-all hover:bg-white">
+                  <Wallet className="w-4 h-4 text-emerald-600" />
+                  <span className="text-sm font-black text-slate-700">
+                    ₦{Number(user?.balance || 0).toLocaleString()}
+                  </span>
+                </Link>
+
+              {/* NOTIFICATIONS */}
+              <div className="relative" ref={notifRef}>
                 <button 
-                  onClick={() => {
-                    setIsNotifOpen(!isNotifOpen);
-                    setIsProfileOpen(false);
-                  }}
-                  className={`p-2 rounded-full transition-colors relative ${
-                    isNotifOpen ? "bg-emerald-50 text-emerald-600" : "text-slate-500 hover:bg-slate-100"
-                  }`}
+                  onClick={() => { setIsNotifOpen(!isNotifOpen); setIsProfileOpen(false); }}
+                  className={`p-2 rounded-xl transition-all relative ${isNotifOpen ? "bg-emerald-50 text-emerald-600 shadow-inner" : "text-slate-400 hover:bg-slate-50"}`}
                 >
-                  <Bell className="w-5 h-5" />
+                  <Bell size={22} />
                   {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
-                      {unreadCount}
+                    <span className="absolute top-1 right-1 w-5 h-5 bg-orange-600 text-white text-[10px] font-black flex items-center justify-center rounded-full ring-2 ring-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
                 </button>
-
                 {isNotifOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setIsNotifOpen(false)} />
-                    <div className="absolute right-0 mt-2 z-20 shadow-2xl animate-in fade-in slide-in-from-top-2">
-                      <NotificationsDropdown onClose={() => setIsNotifOpen(false)} />
-                    </div>
-                  </>
+                  <div className="absolute right-0 mt-3 w-80 z-[60] shadow-2xl animate-in fade-in zoom-in-95 origin-top-right">
+                    <NotificationsDropdown onClose={() => { setIsNotifOpen(false); fetchUnreadCount(); }} />
+                  </div>
                 )}
               </div>
 
-              {/* PROFILE DROPDOWN */}
-              <div className="relative">
+              {/* PROFILE */}
+              <div className="relative" ref={profileRef}>
                 <button 
-                  onClick={() => {
-                    setIsProfileOpen(!isProfileOpen);
-                    setIsNotifOpen(false);
-                  }}
-                  className="flex items-center gap-1 sm:gap-2 p-1 hover:bg-slate-50 rounded-lg transition-all"
+                  onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotifOpen(false); }}
+                  className="flex items-center gap-2 p-1 pr-2 hover:bg-slate-50 rounded-full transition-all border border-transparent hover:border-slate-100"
                 >
-                  <Avatar className="h-8 w-8 border border-slate-200">
-                    <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-bold">
-                      {user?.name?.substring(0, 2).toUpperCase() || "NB"}
-                    </AvatarFallback>
+                  <Avatar className="h-9 w-9 rounded-full ring-2 ring-white shadow-sm">
+                    {user?.profile_image ? (
+                        <img src={user.profile_image} alt="" className="h-full w-full object-cover rounded-full" />
+                    ) : (
+                        <AvatarFallback className="bg-emerald-600 text-white text-xs font-black">{getInitials}</AvatarFallback>
+                    )}
                   </Avatar>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform hidden sm:block ${isProfileOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isProfileOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setIsProfileOpen(false)} />
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-2 z-20 animate-in fade-in slide-in-from-top-2">
-                      <div className="px-4 py-2 border-b border-slate-50 mb-1">
-                        <p className="text-sm font-bold text-slate-900">{user?.name || "User"}</p>
-                        <p className="text-xs text-slate-500 font-medium capitalize">{userType}</p>
-                      </div>
-
-                      <button onClick={() => { navigate("/profile"); setIsProfileOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-emerald-50 transition-colors">
-                        <User className="w-4 h-4" /> My Profile
-                      </button>
-
-                      {userType === "freelancer" && (
-                        <button onClick={() => { navigate("/saved-jobs"); setIsProfileOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-emerald-50 transition-colors">
-                          <Heart className="w-4 h-4" /> Saved Jobs
-                        </button>
-                      )}
-
-                      <button onClick={() => { navigate("/settings"); setIsProfileOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-emerald-50 transition-colors">
-                        <Settings className="w-4 h-4" /> Settings
-                      </button>
-
-                      <div className="border-t border-slate-100 mt-2 pt-1">
-                        <button 
-                          onClick={() => {
-                            logout();
-                            setIsProfileOpen(false);
-                          }} 
-                          className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <LogOut className="w-4 h-4" /> Log Out
-                        </button>
-                      </div>
+                    <div className="absolute right-0 mt-3 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl py-2 z-[60] animate-in fade-in slide-in-from-top-2">
+                        <div className="px-5 py-3 border-b border-slate-50">
+                            <p className="text-sm font-black text-slate-900 truncate">{user?.full_name}</p>
+                            <Badge className="mt-1 bg-emerald-50 text-emerald-700 border-emerald-100 uppercase">{userType}</Badge>
+                        </div>
+                        <div className="p-2 space-y-0.5">
+                            <MenuLink icon={<User />} label="My Profile" onClick={() => { setIsProfileOpen(false); navigate("/profile"); }} />
+                            {userType === "freelancer" && (
+                                <MenuLink icon={<Heart className="text-red-500 fill-red-500" />} label="Saved Jobs" onClick={() => navigate("/saved-jobs")} />
+                            )}
+                            <MenuLink icon={<Settings />} label="Settings" onClick={() => navigate("/settings")} />
+                            <div className="h-px bg-slate-100 my-2 mx-2" />
+                            <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-xl font-bold transition-colors">
+                                <LogOut size={16} /> Log Out
+                            </button>
+                        </div>
                     </div>
-                  </>
                 )}
               </div>
-            </>
+            </div>
           ) : (
             <div className="hidden md:flex items-center gap-3">
               <Button variant="ghost" onClick={() => navigate("/login")}>Login</Button>
@@ -194,37 +239,62 @@ export function Navbar() {
           )}
 
           <button className="md:hidden p-2 text-slate-600" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* MOBILE NAV */}
       {isMenuOpen && (
-        <div className="md:hidden bg-white border-b border-slate-200 p-4 space-y-2">
-          {userType === "freelancer" ? (
-            <>
-              <Link to="/search" className={`block p-2 rounded-lg font-medium ${isActive('/search') ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600'}`} onClick={() => setIsMenuOpen(false)}>Find Work</Link>
-              <Link to="/proposals" className={`block p-2 rounded-lg font-medium ${isActive('/proposals') ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600'}`} onClick={() => setIsMenuOpen(false)}>My Proposals</Link>
-              <Link to="/wallet" className={`block p-2 rounded-lg font-medium ${isActive('/wallet') ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600'}`} onClick={() => setIsMenuOpen(false)}>My Wallet</Link>
-            </>
-          ) : (
-            <>
-              <Link to="/post-job" className={`block p-2 rounded-lg font-medium ${isActive('/post-job') ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600'}`} onClick={() => setIsMenuOpen(false)}>Post a Job</Link>
-              <Link to="/client-dashboard" className={`block p-2 rounded-lg font-medium ${isActive('/client-dashboard') ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600'}`} onClick={() => setIsMenuOpen(false)}>My Job Posts</Link>
-            </>
-          )}
-          <Link to="/messages" className={`block p-2 rounded-lg font-medium ${isActive('/messages') ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600'}`} onClick={() => setIsMenuOpen(false)}>Messages</Link>
-          <Link to="/notifications" className="block p-2 rounded-lg font-medium text-slate-600" onClick={() => setIsMenuOpen(false)}>Notifications ({unreadCount})</Link>
-          
-          {!isLoggedIn && (
-            <div className="pt-4 border-t border-slate-100 space-y-2">
-              <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>Login</Button>
-              <Button className="w-full bg-emerald-600" onClick={() => navigate("/signup")}>Join</Button>
-            </div>
-          )}
+        <div className="md:hidden bg-white border-t border-slate-100 p-4 space-y-2 shadow-xl animate-in slide-in-from-top">
+           {isLoggedIn ? (
+             <div className="flex flex-col gap-1">
+                <MobileNavLink to={userType === 'client' ? '/client-dashboard' : '/search'}>Dashboard</MobileNavLink>
+                <MobileNavLink to="/messages">Messages</MobileNavLink>
+                <MobileNavLink to="/notifications">Notifications ({unreadCount})</MobileNavLink>
+                <button onClick={logout} className="w-full text-left p-4 text-red-500 font-bold border-t border-slate-50 mt-2">Log Out</button>
+             </div>
+           ) : (
+             <div className="grid grid-cols-1 gap-3">
+                <Button variant="outline" onClick={() => navigate("/login")}>Login</Button>
+                <Button className="bg-emerald-600" onClick={() => navigate("/signup")}>Get Started</Button>
+             </div>
+           )}
         </div>
       )}
     </nav>
+  );
+}
+
+// --- Helper Components (Keep these below main component) ---
+function NavLink({ to, children, active, icon }) {
+  return (
+    <Link to={to} className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl transition-all ${active ? "text-emerald-600 bg-emerald-50" : "text-slate-500 hover:text-emerald-600 hover:bg-slate-50"}`}>
+      {icon} {children}
+    </Link>
+  );
+}
+
+function MobileNavLink({ to, children }) {
+  return (
+    <Link to={to} className="block w-full p-4 rounded-2xl font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-600">
+      {children}
+    </Link>
+  );
+}
+
+function MenuLink({ icon, label, onClick }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-emerald-600 rounded-xl transition-all text-left">
+      {React.cloneElement(icon, { size: 16, className: "opacity-70" })} {label}
+    </button>
+  );
+}
+
+function Badge({ children, className }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black tracking-wider ring-1 ring-inset ${className}`}>
+      {children}
+    </span>
   );
 }

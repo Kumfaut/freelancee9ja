@@ -3,66 +3,78 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  // 1. Initialize from localStorage immediately
-  const [user, setUser] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem("nf_user");
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch (error) {
-      console.error("Failed to parse user from localStorage", error);
-      return null;
-    }
-  });
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // 2. Sync state with localStorage whenever the user object changes
   useEffect(() => {
-    if (user) {
-      localStorage.setItem("nf_user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("nf_user");
-    }
-  }, [user]);
+    const initializeAuth = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const savedUser = localStorage.getItem("nf_user");
 
-  // 3. Robust Login function
-  const login = (userData) => {
-    // userData should be: { name: "...", role: "client/freelancer" }
-    setUser(userData);
+        if (token && savedUser) {
+          const parsedUser = JSON.parse(savedUser);
+          // 1. Set the initial state from local storage so UI loads fast
+          setUser({ ...parsedUser, token });
+
+          // 2. OPTIONAL BUT RECOMMENDED: Fetch latest profile from DB
+          // This solves the "Email not found" issue if the local storage is incomplete
+          try {
+            const res = await fetch("http://localhost:5000/api/auth/me", {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const latestData = await res.json();
+            if (latestData.success) {
+               // Update state and storage with fresh DB data (email, role, etc.)
+               const updatedUser = { ...latestData.user, token };
+               setUser(updatedUser);
+               localStorage.setItem("nf_user", JSON.stringify(latestData.user));
+            }
+          } catch (fetchErr) {
+            console.warn("Could not sync profile, using cached data.");
+          }
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+  }, []);
+
+  const login = (userData, token) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("nf_user", JSON.stringify(userData));
+    setUser({ ...userData, token });
   };
 
-  // 4. Clean Logout function
   const logout = () => {
-    if (window.confirm("Are you sure you want to log out?")) {
-      setUser(null);
-      // Optional: Redirect to login page
-      // window.location.href = "/login";
-    }
-  };
-
-  // 5. Developer Helper: Quickly switch roles to test UI
-  const toggleRole = () => {
-    if (!user) return;
-    const newRole = user.role === "client" ? "freelancer" : "client";
-    setUser({ ...user, role: newRole });
+    localStorage.removeItem("token");
+    localStorage.removeItem("nf_user");
+    setUser(null);
+    window.location.href = "/login";
   };
 
   return (
     <AuthContext.Provider value={{ 
       user, 
-      isLoggedIn: !!user, // Helper boolean
+      setUser, // 👈 ADD THIS LINE
+      isLoggedIn: !!user, 
+      loading, 
       login, 
-      logout, 
-      toggleRole 
+      logout 
     }}>
-      {children}
+      {loading ? (
+        <div className="h-screen flex items-center justify-center">
+          <p className="animate-pulse text-slate-500 font-bold">Initializing Secure Session...</p>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }
 
-// Custom hook for easy access
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);

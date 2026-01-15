@@ -8,47 +8,53 @@ import { Input } from "../components/ui/Input";
 import { Label } from "../components/ui/Label";
 import { Checkbox } from "../components/ui/Checkbox";
 import { Separator } from "../components/ui/Separator";
-import { Mail, Lock, Chrome, Facebook } from "lucide-react";
-import { useAuth } from "../context/AuthContext"; // 1. Import useAuth
+import { Mail, Lock, Chrome, Facebook, Loader2 } from "lucide-react";
+import { useAuth } from "../context/AuthContext"; 
+import { loginUser as apiLoginUser } from "../api/api"; // Import the actual API call
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth(); // 2. Grab the login function
+  const { login } = useAuth(); 
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(""); 
     
-    // Simulate login process
-    setTimeout(() => {
-      setIsLoading(false);
-
-      // 3. Create mock user data
-      // Logic: if email has "client", make them a client, else freelancer
-      const role = email.toLowerCase().includes("client") ? "client" : "freelancer";
+    try {
+      const response = await apiLoginUser({ email, password });
       
-      const userData = {
-        name: role === "client" ? "Chidi Client" : "Adebayo Freelancer",
-        email: email,
-        role: role,
-        avatar: role === "client" ? "CC" : "AF"
-      };
+      // DEBUG: Look at your browser console to see if 'email' is here
+      console.log("Login Response Data:", response.data);
 
-      // 4. Log them in (updates LocalStorage & Context)
-      login(userData);
+      const { token, user } = response.data;
 
-      // 5. Redirect based on role
-      if (role === "client") {
+      if (!token || !user?.email) {
+        console.error("Login successful but user data is incomplete:", user);
+      }
+
+      // Save token (though your login function already does this, it's good for safety)
+      localStorage.setItem("token", token);
+
+      login(user, token);
+
+      // Redirect
+      if (user.role === "client") {
         navigate("/client-dashboard");
       } else {
         navigate("/freelancer-dashboard");
       }
-    }, 1500);
+    } catch (err) {
+      setError(err.response?.data?.message || "Invalid email or password.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocialLogin = (provider) => {
@@ -59,7 +65,6 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full space-y-8">
         
-        {/* Logo & Header */}
         <div className="text-center">
           <Link to="/" className="inline-flex justify-center mb-6">
             <div className="w-14 h-14 bg-emerald-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-emerald-100">
@@ -67,19 +72,22 @@ export default function LoginPage() {
             </div>
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Welcome back</h1>
-          <p className="text-slate-500">
-            Sign in to your NaijaFreelance account
-          </p>
+          <p className="text-slate-500">Sign in to your NaijaFreelance account</p>
         </div>
 
         <Card className="border-none shadow-sm">
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Sign In</CardTitle>
-            <CardDescription>
-              Enter your email and password to continue
-            </CardDescription>
+            <CardDescription>Enter your email and password to continue</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Show Error Message if login fails */}
+            {error && (
+              <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-100">
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
@@ -95,7 +103,6 @@ export default function LoginPage() {
                     className="pl-10 focus-visible:ring-emerald-500"
                   />
                 </div>
-                <p className="text-[10px] text-slate-400">Tip: Use "client" in email to test Client Dashboard</p>
               </div>
 
               <div className="space-y-2">
@@ -135,7 +142,14 @@ export default function LoginPage() {
                 className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 mt-2 font-bold"
                 disabled={isLoading}
               >
-                {isLoading ? "Signing in..." : "Sign In"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
             </form>
 
@@ -172,16 +186,6 @@ export default function LoginPage() {
             </div>
           </CardContent>
         </Card>
-
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
-          <div className="text-xl">🇳🇬</div>
-          <div>
-            <h3 className="text-sm font-bold text-emerald-900">Built for Nigeria</h3>
-            <p className="text-xs text-emerald-700 mt-0.5">
-              Withdraw earnings directly to your local bank account instantly.
-            </p>
-          </div>
-        </div>
 
         <p className="text-center text-sm text-slate-500">
           Don't have an account?{" "}

@@ -1,16 +1,30 @@
-// src/routes/userRoutes.js
 import express from "express";
-import { registerUser, loginUser, getUsers } from "../controllers/userController.js";
+import { 
+  registerUser, 
+  loginUser, 
+  getUsers, 
+  getUserProfile, 
+  updateProfile,
+  getPublicProfile,
+  getTopFreelancers 
+} from "../controllers/userController.js";
+import { verifyToken } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Register a new user
+// --- Public Routes ---
 router.post("/register", registerUser);
-
-// Login user
 router.post("/login", loginUser);
-
-// Get all users (for admin/testing)
 router.get("/", getUsers);
+
+// 1. Specific static path FIRST
+router.get("/freelancers/top", getTopFreelancers);
+
+// 2. Dynamic parameter path SECOND
+router.get("/public/:id", getPublicProfile);
+
+// --- Protected Routes ---
+router.get("/profile", verifyToken, getUserProfile); 
+router.put("/profile/update", verifyToken, updateProfile); 
 
 export default router;
