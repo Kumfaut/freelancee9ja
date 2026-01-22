@@ -26,8 +26,8 @@ export const hireFreelancer = async (req, res) => {
 
     // 3. Create Milestone
     await connection.execute(
-        "INSERT INTO milestones (contract_id, title, amount, status) VALUES (?, ?, ?, 'funded')",
-        [contractId, title || "Project Phase", amount]
+      "INSERT INTO milestones (contract_id, title, amount, status) VALUES (?, ?, ?, 'funded')",
+      [contractId, title || "Project Phase", amount]
     );
 
     // 4. Update the proposal status
@@ -41,6 +41,26 @@ export const hireFreelancer = async (req, res) => {
     // 5. Update Job status
     if (job_id) {
       await connection.execute("UPDATE jobs SET status = 'filled' WHERE id = ?", [job_id]);
+    }
+
+    // --- NEW: NOTIFY FREELANCER OF HIRE ---
+    // --- NOTIFY FREELANCER OF HIRE ---
+    const hireMsg = `You've been hired for the project: ${title || 'New Job'}`;
+    
+    // 1. We use Number() to ensure freelancer_id is an integer
+    // 2. We explicitly set is_read to 0 (false)
+    await connection.execute(
+      "INSERT INTO notifications (user_id, type, content, link, is_read) VALUES (?, ?, ?, ?, ?)",
+      [Number(freelancer_id), 'hired', hireMsg, `/contract/${contractId}`, 0]
+    );
+
+    const io = req.app.get("socketio");
+    if (io) {
+      // Use the same Number() here to ensure the socket room string is correct
+      io.to(`user_${Number(freelancer_id)}`).emit("new_notification", {
+        type: 'hired',
+        message: hireMsg
+      });
     }
     
     await connection.commit();
@@ -143,6 +163,21 @@ export const releaseMilestone = async (req, res) => {
       [freelancerId, freelancerPayout, txnReference, 'completed', `Payout: ${milestones[0].title}`, 'payment']
     );
 
+    // --- NEW: NOTIFY FREELANCER OF PAYMENT ---
+    const paymentMsg = `Payment of ₦${freelancerPayout.toLocaleString()} released for: ${milestones[0].title}`;
+    await connection.execute(
+      "INSERT INTO notifications (user_id, type, content, link) VALUES (?, 'payment', ?, ?)",
+      [freelancerId, paymentMsg, `/wallet`]
+    );
+
+    const io = req.app.get("socketio");
+    if (io) {
+      io.to(`user_${freelancerId}`).emit("new_notification", {
+        type: 'payment',
+        message: paymentMsg
+      });
+    }
+
     await connection.commit();
     res.json({ success: true, message: "Payment released! Fee deducted." });
   } catch (error) {
@@ -182,19 +217,17 @@ export const completeProject = async (req, res) => {
 
     // 3. Perform Money Transfer
     if (amountToRelease > 0) {
-      // Add to freelancer balance
       await connection.execute(
         "UPDATE users SET balance = balance + ? WHERE id = ?", 
         [amountToRelease, freelancerId]
       );
-      // Deduct from client escrow
       await connection.execute(
         "UPDATE users SET escrow_balance = escrow_balance - ? WHERE id = ?", 
         [amountToRelease, clientId]
       );
     }
 
-    // 4. Finalize Statuses (Ensure these strings match your DB ENUM)
+    // 4. Finalize Statuses
     await connection.execute(
       "UPDATE contracts SET status = 'closed' WHERE id = ?", 
       [contractId]
@@ -204,6 +237,21 @@ export const completeProject = async (req, res) => {
       "UPDATE milestones SET status = 'completed' WHERE contract_id = ? AND status = 'funded'", 
       [contractId]
     );
+
+    // --- NEW: NOTIFY FREELANCER OF COMPLETION ---
+    const completionMsg = `Project successfully completed and settled!`;
+    await connection.execute(
+      "INSERT INTO notifications (user_id, type, content, link) VALUES (?, 'project_closed', ?, ?)",
+      [freelancerId, completionMsg, `/contract/${contractId}`]
+    );
+
+    const io = req.app.get("socketio");
+    if (io) {
+      io.to(`user_${freelancerId}`).emit("new_notification", {
+        type: 'project_closed',
+        message: completionMsg
+      });
+    }
 
     await connection.commit();
     res.json({ success: true, message: "Project settled and closed!" });
@@ -216,6 +264,7 @@ export const completeProject = async (req, res) => {
     connection.release();
   }
 };
+
 // --- ADDITIONAL UTILITIES ---
 export const getContractMilestones = async (req, res) => {
   const { id: contractId } = req.params;

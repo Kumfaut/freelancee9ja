@@ -11,59 +11,60 @@ export const createProposal = async (req, res) => {
 
     const finalDays = delivery_days || timeline || null;
 
-    // 1. Insert Proposal
-    const [result] = await db.execute(
+    // 1. Insert Proposal - Changed [result] to just [] or use underscore [_result] to fix ESLint
+    await db.execute(
       `INSERT INTO proposals (job_id, freelancer_id, bid_amount, cover_letter, delivery_days, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
       [job_id, freelancer_id, bid_amount, cover_letter || null, finalDays]
     );
 
-    // 2. Fetch Job & Freelancer Info for the socket/notification
-    // We need the freelancer's name so the client's UI looks good immediately
+    // 2. Fetch Job & Freelancer Info for notifications
     const [[jobInfo]] = await db.execute("SELECT client_id, title FROM jobs WHERE id = ?", [job_id]);
     const [[freelancer]] = await db.execute("SELECT full_name FROM users WHERE id = ?", [freelancer_id]);
 
     if (jobInfo) {
       const { client_id: clientId, title: jobTitle } = jobInfo;
+      const io = req.app.get("socketio");
 
-      // Prepare the data for Socket.io
-      const socketData = {
-        id: result.insertId,
-        job_id,
-        freelancer_id,
-        full_name: freelancer.full_name,
-        bid_amount,
-        cover_letter,
-        timeline: finalDays,
-        created_at: new Date()
-      };
+      // --- CLIENT NOTIFICATION (Database) ---
+      await db.execute(
+        `INSERT INTO notifications (user_id, type, content, link, is_read) VALUES (?, 'proposal', ?, ?, 0)`,
+        [clientId, `New proposal for: ${jobTitle}`, `/manage-proposals/${job_id}`]
+      );
 
-      // 3. Emit via Socket
-      if (req.app.get("socketio")) {
-        // Emit to the specific job management room
-        req.app.get("socketio").to(`job_mgmt_${job_id}`).emit("new_proposal_received", socketData);
-        // Also emit a general notification to the client
-        req.app.get("socketio").to(`user_${clientId}`).emit("new_notification", {
+      // --- CLIENT NOTIFICATION (Real-time) ---
+      if (io) {
+        io.to(`user_${clientId}`).emit("new_notification", {
           type: 'proposal',
           message: `New proposal from ${freelancer.full_name} for ${jobTitle}`
         });
       }
 
-      // 4. Save Notification to DB
+      // --- FREELANCER NOTIFICATION (Database) ---
       await db.execute(
-        `INSERT INTO notifications (user_id, type, content, link, is_read) VALUES (?, 'proposal', ?, ?, 0)`,
-        [clientId, `New proposal for: ${jobTitle}`, `/manage-proposals/${job_id}`]
+        `INSERT INTO notifications (user_id, type, content, link, is_read) VALUES (?, 'proposal_sent', ?, ?, 0)`,
+        [freelancer_id, `You submitted a proposal for: ${jobTitle}`, `/my-proposals`]
       );
+
+      // --- FREELANCER NOTIFICATION (Real-time) ---
+      if (io) {
+        io.to(`user_${freelancer_id}`).emit("new_notification", {
+          type: 'proposal_sent',
+          message: `Your proposal for "${jobTitle}" was submitted successfully!`
+        });
+      }
     }
 
-    res.status(201).json({ success: true, message: "Proposal submitted!" });
+    // 3. Return response ONLY after notifications are processed
+    return res.status(201).json({ success: true, message: "Proposal submitted!" });
 
   } catch (error) {
     console.error("Proposal Error:", error);
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
-// Add this to proposalController.js
+
+
 export const getMyProposals = async (req, res) => {
   const freelancer_id = req.user.id;
 
