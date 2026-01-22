@@ -104,6 +104,13 @@ export const verifyPayment = async (req, res) => {
       await connection.commit();
       console.log("🏁 TRANSACTION COMMITTED SUCCESSFULLY");
 
+      await createNotification(
+        userId, 
+        "payment", 
+        `Success! ₦${amountInNaira.toLocaleString()} has been added to your wallet.`, 
+        "/wallet"
+      );
+
       return res.json({ success: true, message: "Wallet Updated!" });
     } else {
       console.log("❌ Paystack says payment failed.");
@@ -300,13 +307,9 @@ export const withdrawFunds = async (req, res) => {
 
 // --- 7. GET WALLET STATUS ---
 export const getWalletStatus = async (req, res) => {
-  const { userId } = req.params;
+  const userId = req.user.id; // Get ID from token, not params
 
   try {
-    if (!userId || userId === "undefined") {
-      return res.status(400).json({ success: false, message: "User ID is required" });
-    }
-
     const [userRows] = await db.query(
       "SELECT balance, escrow_balance FROM users WHERE id = ?",
       [userId]
@@ -315,19 +318,48 @@ export const getWalletStatus = async (req, res) => {
     if (!userRows.length) return res.status(404).json({ success: false, message: "User not found" });
 
     const [historyRows] = await db.query(
-      "SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 10",
+      "SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20",
       [userId]
     );
 
-    // CRITICAL FIX: Added success: true and made sure keys match frontend (available/escrow)
     res.json({
       success: true, 
-      balance: userRows[0].balance || 0,
-      escrow: userRows[0].escrow_balance || 0,
-      history: historyRows || [],
+      balance: parseFloat(userRows[0].balance || 0),
+      escrow: parseFloat(userRows[0].escrow_balance || 0),
+      history: historyRows,
     });
   } catch (err) {
-    console.error("❌ Wallet Status Error:", err.message);
-    res.status(500).json({ success: false, message: "Server database error" });
+    res.status(500).json({ success: false, message: "Database error" });
+  }
+};
+
+// backend/src/controllers/walletController.js
+
+// --- NEW: VERIFY BANK ACCOUNT NAME ---
+export const verifyBankAccount = async (req, res) => {
+  // Use query params from the URL
+  const { accountNumber, bankCode } = req.query;
+
+  try {
+    const response = await axios.get(
+      `https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        },
+      }
+    );
+
+    // Paystack returns data.data.account_name
+    return res.json({
+      success: true,
+      accountName: response.data.data.account_name,
+    });
+  } catch (error) {
+    console.error("Paystack Resolve Error:", error.response?.data || error.message);
+    return res.status(400).json({
+      success: false,
+      message: "Could not verify account name.",
+    });
   }
 };

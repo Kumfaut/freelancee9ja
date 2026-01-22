@@ -2,44 +2,60 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import db from "../config/db.js";
 
-// --- REGISTER USER ---
+// --- REGISTER USER (Direct Signup, No Email/OTP) ---
 export const registerUser = async (req, res) => {
-  console.log("!!! REQ BODY RECEIVED:", req.body);
-  const { full_name, email, password, role } = req.body;
+  const { full_name, email, password, role, phone, location } = req.body;
 
+  // 1. Validate input
   if (!full_name || !email || !password || !role) {
-    return res.status(400).json({ 
-      message: "Please provide all required fields",
-      received: req.body 
-    });
+    return res.status(400).json({ message: "Please provide all required fields" });
   }
 
   try {
+    // 2. Check if user already exists
     const [existingUser] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
     if (existingUser.length > 0) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
+    // 3. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // 4. Insert into DB (is_verified set to 1 by default since no OTP is used)
     const [result] = await db.query(
-      "INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, ?)", 
-      [full_name, email, hashedPassword, role]
+      "INSERT INTO users (full_name, email, password, role, phone, location, is_verified) VALUES (?, ?, ?, ?, ?, ?, 1)", 
+      [full_name, email, hashedPassword, role, phone || null, location || null]
     );
 
+    const userId = result.insertId;
+
+    // 5. Generate Token immediately (Allows auto-login after signup)
+    const token = jwt.sign(
+      { id: userId, email, role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // 6. Return response with token
     res.status(201).json({ 
-      message: "User registered successfully", 
-      userId: result.insertId,
-      user: { full_name, email, role } 
+      success: true,
+      message: "Registration successful!",
+      token,
+      user: { 
+        id: userId, 
+        full_name, 
+        email, 
+        role 
+      }
     });
 
   } catch (error) {
     console.error("Registration Error:", error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error during registration" });
   }
 };
 
-// --- LOGIN USER (Optimized for Wallet features) ---
+// --- LOGIN USER ---
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
@@ -59,7 +75,7 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // 3. Generate JWT token (Includes email and role for security)
+    // 3. Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
@@ -67,7 +83,6 @@ export const loginUser = async (req, res) => {
     );
 
     // 4. Send response 
-    // IMPORTANT: We send the full user object so the frontend has the email for Paystack
     res.json({ 
       message: "Login successful", 
       token,

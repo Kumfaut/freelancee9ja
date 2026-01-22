@@ -41,6 +41,11 @@ export const fetchUsers = () => API.get("/users");
 // ------------------- AUTH (Updated to match your authRoutes.js) -------------------
 // Change "/users/register" to "/auth/register"
 export const registerUser = (userData) => API.post("/auth/register", userData);
+// Add this to your existing exports in api.js
+export const verifyEmail = async (data) => {
+    // data should contain { email, otp }
+    return await API.post("/auth/verify-email", data);
+  };
 
 // Change "/users/login" to "/auth/login"
 export const loginUser = (userData) => API.post("/auth/login", userData);
@@ -55,7 +60,7 @@ export const getUserProfile = () => API.get("/users/profile");
 export const updateProfile = (profileData) => API.put("/users/profile/update", profileData);
 
 // ------------------- JOBS -------------------
-export const fetchJobs = () => API.get("/jobs");
+export const fetchJobs = (params) => API.get("/jobs", { params });
 export const fetchJobById = (id) => API.get(`/jobs/${id}`);
 export const createJob = (jobData) => API.post("/jobs", jobData);
 export const fetchMyJobs = () => API.get("/jobs/my-jobs");
@@ -65,6 +70,8 @@ export const fetchProposalsByJob = (jobId) => API.get(`/proposals/job/${jobId}`)
 export const fetchSavedJobs = () => API.get("/jobs/saved/all");
 // Add this to your other exports in api.js
 export const toggleSaveJob = (jobId) => API.post('/jobs/save', { job_id: jobId });
+// Add this near your other Job exports
+export const fetchRecommendedJobs = () => API.get("/jobs/recommended/personal");
 
 // Also, add the hiring call if you haven't yet:
 export const hireFreelancer = (hireData) => API.post("/contracts/hire", hireData);

@@ -9,37 +9,33 @@ import {
   getCategoryStats,
   getLatestJobs,
   getSavedJobs,
-  toggleSaveJob// Already imported here
+  toggleSaveJob,
+  getRecommendedJobs
 } from "../controllers/jobController.js";
+// Changed to only import verifyToken to keep it simple
 import { verifyToken } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// 1. Static/Stats Routes (Top priority)
-// REMOVED 'jobController.' because you imported the function directly above
-// backend/routes/jobRoutes.js
-
-// 1. Static/Stats Routes (Top priority)
+// 1. Static/Stats Routes
 router.get("/stats/categories", getCategoryStats); 
 
-// 2. Filtered/User Routes
+// 2. User Routes (Verified)
 router.get("/my-jobs", verifyToken, getMyJobs);
-// backend/src/routes/jobRoutes.js
 router.get("/saved/all", verifyToken, getSavedJobs);
 router.post("/save", verifyToken, toggleSaveJob);
 
-// 3. Public Listing Routes
-// --- MOVE THIS ABOVE /:id ---
+// 3. Public Routes
 router.get("/latest", getLatestJobs); 
-
 router.get("/", getJobs);
 
-// --- DYNAMIC ROUTES LAST ---
+// Changed 'protect' to 'verifyToken' here
+router.get("/recommended/personal", verifyToken, getRecommendedJobs);
+
+// 4. Dynamic Route (Must be after /latest and /stats)
 router.get("/:id", getJobById);
 
-
-
-// 4. Protected Action Routes
+// 5. Protected Action Routes
 router.post("/", verifyToken, createJob);
 router.put("/:id", verifyToken, updateJob);
 router.delete("/:id", verifyToken, deleteJob);

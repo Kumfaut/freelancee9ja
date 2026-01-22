@@ -25,3 +25,4 @@ export const verifyToken = (req, res, next) => {
   }
 };
 
+export const protect = verifyToken;

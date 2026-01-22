@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
+import { 
+  fetchRecommendedJobs, 
+  fetchUserContracts 
+} from "../api/api";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -9,12 +13,81 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
 import { Progress } from "../components/ui/Progress";
 import { 
   Bell, Briefcase, DollarSign, Star, 
-  TrendingUp, Search,
-  ExternalLink, Loader2
+  TrendingUp, Search, ExternalLink, 
+  Loader2, Sparkles, ArrowRight 
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { fetchUserContracts } from "../api/api"; // Ensure this is exported in api.js
 
+// --- SUB-COMPONENT: RECOMMENDED JOBS ---
+function RecommendedJobsSection() {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadRecommended = async () => {
+      try {
+        const res = await fetchRecommendedJobs();
+        setJobs(res.data.data || []);
+      } catch (err) {
+        console.error("Failed to load recommendations", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadRecommended();
+  }, []);
+
+  if (loading) return (
+    <div className="flex justify-center py-8"><Loader2 className="animate-spin text-emerald-600" /></div>
+  );
+
+  if (!loading && jobs.length === 0) return null;
+
+  return (
+    <div className="mb-10">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-amber-100 rounded-lg">
+            <Sparkles className="w-5 h-5 text-amber-600 fill-amber-600" />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+            Matches for your skills
+          </h2>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {jobs.slice(0, 3).map((job) => (
+          <Card 
+            key={job.id} 
+            className="group cursor-pointer border-none shadow-sm hover:shadow-md transition-all ring-1 ring-slate-200 bg-white rounded-2xl overflow-hidden"
+            onClick={() => navigate(`/job/${job.id}`)}
+          >
+            <CardContent className="p-5">
+              <Badge className="mb-3 bg-slate-100 text-slate-600 border-none font-bold text-[9px] uppercase tracking-tighter">
+                {job.category.replace(/-/g, ' ')}
+              </Badge>
+              <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">
+                {job.title}
+              </h3>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-sm font-black text-slate-900">
+                  ₦{Number(job.budget_max).toLocaleString()}
+                </span>
+                <div className="p-2 rounded-full bg-slate-50 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- MAIN DASHBOARD COMPONENT ---
 export default function FreelancerDashboard() {
   const { user, isLoggedIn } = useAuth();
   const navigate = useNavigate();
@@ -22,12 +95,11 @@ export default function FreelancerDashboard() {
   const [activeContracts, setActiveContracts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch real contracts on mount
   useEffect(() => {
     const getContracts = async () => {
       try {
         const res = await fetchUserContracts();
-        setActiveContracts(res.data);
+        setActiveContracts(res.data || []);
       } catch (err) {
         console.error("Error fetching contracts:", err);
       } finally {
@@ -38,7 +110,7 @@ export default function FreelancerDashboard() {
   }, [isLoggedIn]);
 
   if (!isLoggedIn) return <Navigate to="/login" />;
-  if (user.role !== "freelancer") return <Navigate to="/client-dashboard" />;
+  if (user?.role !== "freelancer") return <Navigate to="/client-dashboard" />;
 
   const stats = [
     { label: "Total Earnings", val: "₦2.4M", icon: <DollarSign className="text-emerald-600 w-5 h-5"/>, bg: "bg-emerald-100" },
@@ -77,7 +149,7 @@ export default function FreelancerDashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {stats.map((s, i) => (
-            <Card key={i} className="border-none shadow-sm ring-1 ring-slate-200/60 rounded-2xl">
+            <Card key={i} className="border-none shadow-sm ring-1 ring-slate-200/60 rounded-2xl bg-white">
               <CardContent className="p-6 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{s.label}</p>
@@ -91,11 +163,14 @@ export default function FreelancerDashboard() {
           ))}
         </div>
 
+        {/* --- RECOMMENDED SECTION (NEW) --- */}
+        <RecommendedJobsSection />
+
         {/* Main Content Area */}
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="active" className="w-full">
-              <TabsList className="bg-slate-200/50 border-none p-1.5 rounded-2xl mb-6">
+              <TabsList className="bg-slate-200/50 border-none p-1.5 rounded-2xl mb-6 inline-flex">
                 <TabsTrigger value="active" className="rounded-xl px-6 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   Active Projects
                 </TabsTrigger>
@@ -104,7 +179,7 @@ export default function FreelancerDashboard() {
                 </TabsTrigger>
               </TabsList>
               
-              <TabsContent value="active" className="space-y-4">
+              <TabsContent value="active" className="space-y-4 outline-none">
                 {loading ? (
                   <div className="flex justify-center py-12"><Loader2 className="animate-spin text-emerald-600" /></div>
                 ) : activeContracts.length === 0 ? (
@@ -117,7 +192,7 @@ export default function FreelancerDashboard() {
                   </div>
                 ) : (
                   activeContracts.map((contract) => (
-                    <Card key={contract.id} className="border-none shadow-sm ring-1 ring-slate-200/60 hover:shadow-md transition-all rounded-2xl overflow-hidden group">
+                    <Card key={contract.id} className="border-none shadow-sm ring-1 ring-slate-200/60 hover:shadow-md transition-all rounded-2xl overflow-hidden group bg-white">
                       <CardContent className="p-6">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                             <div>
@@ -131,9 +206,7 @@ export default function FreelancerDashboard() {
                             </div>
                             <div className="flex flex-col items-end gap-2">
                               <p className="text-lg font-black text-slate-900">₦{Number(contract.amount).toLocaleString()}</p>
-                              
-                              {/* --- ADDED WORKSPACE BUTTON --- */}
-                              <Button 
+                              <Button 
                                 onClick={() => navigate(`/workspace/${contract.id}`)}
                                 variant="outline"
                                 className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-black text-xs h-9 px-4 rounded-xl flex gap-2"
@@ -156,8 +229,7 @@ export default function FreelancerDashboard() {
                 )}
               </TabsContent>
 
-              <TabsContent value="proposals" className="mt-6">
-                 {/* Similar map logic for proposals can go here */}
+              <TabsContent value="proposals" className="outline-none mt-6">
                 <div className="text-center py-12 bg-white rounded-3xl border-2 border-dashed border-slate-200">
                   <p className="text-slate-500 font-bold">No active proposals found.</p>
                 </div>
@@ -167,7 +239,7 @@ export default function FreelancerDashboard() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            <Card className="border-none shadow-sm ring-1 ring-slate-200/60 rounded-2xl overflow-hidden">
+            <Card className="border-none shadow-sm ring-1 ring-slate-200/60 rounded-2xl overflow-hidden bg-white">
               <CardHeader className="bg-slate-50/50 border-b border-slate-100">
                 <CardTitle className="text-lg font-black text-slate-800">Recent Earnings</CardTitle>
               </CardHeader>
@@ -189,7 +261,7 @@ export default function FreelancerDashboard() {
                 <div className="p-4 bg-slate-50/50">
                   <Button 
                     variant="ghost" 
-                    className="w-full text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100/50 text-xs font-black uppercase tracking-widest mt-2"
+                    className="w-full text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100/50 text-xs font-black uppercase tracking-widest"
                     onClick={() => navigate("/wallet")}
                   >
                     View All Transactions
@@ -204,12 +276,12 @@ export default function FreelancerDashboard() {
                   <div className="bg-white/20 p-2 rounded-lg">
                     <TrendingUp className="w-5 h-5 text-white" />
                   </div>
-                  <h4 className="font-bold">Upgrade to Pro</h4>
+                  <h4 className="font-bold text-sm">Upgrade to Pro</h4>
                 </div>
-                <p className="text-emerald-50 text-xs leading-relaxed mb-4">
+                <p className="text-emerald-50 text-[11px] leading-relaxed mb-4 font-medium">
                   Get 20% lower service fees and featured placement on job searches.
                 </p>
-                <Button className="w-full bg-white text-emerald-600 font-black text-xs hover:bg-emerald-50">
+                <Button className="w-full bg-white text-emerald-600 font-black text-xs hover:bg-emerald-50 rounded-xl py-5 shadow-sm transition-all active:scale-95">
                   Learn More
                 </Button>
               </CardContent>

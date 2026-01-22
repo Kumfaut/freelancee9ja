@@ -9,11 +9,9 @@ router.post("/register", registerUser);
 router.post("/login", loginUser);
 
 // THE PROFILE SYNC ROUTE
-// backend/src/routes/authRoutes.js
 router.get("/me", verifyToken, async (req, res) => {
   try {
     const [rows] = await db.query(
-      // Ensure this matches your DB exactly: use 'balance'
       "SELECT id, full_name, email, role, balance, profile_image FROM users WHERE id = ?", 
       [req.user.id]
     );

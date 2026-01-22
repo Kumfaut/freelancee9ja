@@ -8,7 +8,7 @@ import { Slider } from "../components/ui/Slider";
 import { Separator } from "../components/ui/Separator";
 import { Checkbox } from "../components/ui/Checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/Collapsible";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown} from "lucide-react";
 
 const FilterSection = ({ title, isOpen, onToggle, children }) => (
   <Collapsible open={isOpen} onOpenChange={onToggle}>

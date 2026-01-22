@@ -32,13 +32,13 @@ export default function HomePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a 
-                href="/register" 
+                href="/signup" 
                 className="bg-emerald-500 hover:bg-emerald-400 text-white px-10 py-4 rounded-full font-bold transition-all shadow-lg"
               >
                 Get Started for Free
               </a>
               <a 
-                href="/jobs" 
+                href="/search" 
                 className="bg-transparent border-2 border-emerald-400/30 hover:border-emerald-400 text-white px-10 py-4 rounded-full font-bold transition-all"
               >
                 Browse Jobs

@@ -7,32 +7,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Input } from "../components/ui/Input";
 import { Badge } from "../components/ui/Badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/Select";
-import { Search, MapPin, Star, Briefcase, Loader2 } from "lucide-react";
+import { Search, MapPin, Star, Loader2, ShieldCheck, Zap, TrendingUp } from "lucide-react";
 import ChatButton from "../components/ChatButton";
 import Footer from "../components/Footer";
 import { fetchUsers } from "../api/api";
 
-
 export default function BrowseFreelancersPage() {
-  // --- STATE ---
   const navigate = useNavigate();
-  const [allFreelancers, setAllFreelancers] = useState([]); // Database data
+  const [allFreelancers, setAllFreelancers] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
   const [sortBy, setSortBy] = useState("rating");
-  
 
-  // --- FETCH LIVE DATA ---
   useEffect(() => {
     const loadFreelancers = async () => {
       try {
         setIsLoading(true);
         const response = await fetchUsers();
         
-        // 1. Filter for only users with 'freelancer' role
-        // 2. Map database fields to UI property names
         const liveData = response.data
           .filter((user) => user.role === "freelancer")
           .map((f) => ({
@@ -40,7 +34,7 @@ export default function BrowseFreelancersPage() {
             name: f.full_name,
             title: f.title || "Professional Freelancer",
             avatar: f.full_name ? f.full_name.charAt(0).toUpperCase() : "U",
-            rating: f.rating || 5.0, // Default if not in DB yet
+            rating: f.rating || 5.0,
             reviews: f.reviews || 0,
             hourlyRate: f.hourlyRate || 0,
             location: f.location || "Nigeria",
@@ -48,7 +42,7 @@ export default function BrowseFreelancersPage() {
             skills: f.skills ? f.skills.split(",") : ["Expert"],
             category: f.category || "web-development",
             completedJobs: f.completedJobs || 0,
-            responseTime: "2 hours",
+            isVetted: true, // Visual enhancement
           }));
 
         setAllFreelancers(liveData);
@@ -58,11 +52,9 @@ export default function BrowseFreelancersPage() {
         setIsLoading(false);
       }
     };
-
     loadFreelancers();
   }, []);
 
-  // --- FILTER & SORT LOGIC ---
   const filteredFreelancers = useMemo(() => {
     return allFreelancers
       .filter((f) => {
@@ -82,44 +74,45 @@ export default function BrowseFreelancersPage() {
       });
   }, [allFreelancers, searchQuery, selectedCategory, selectedLocation, sortBy]);
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedCategory("all");
-    setSelectedLocation("all");
-  };
-
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
       <div className="grow px-4 py-8 lg:py-12">
         <div className="max-w-7xl mx-auto">
           
-          {/* Page Header */}
-          <div className="mb-8 space-y-2">
-            <h1 className="text-3xl font-bold text-slate-900">Find Top Freelancers</h1>
-            <p className="text-slate-500 max-w-2xl">
-              Hire vetted Nigerian professionals for your next project.
-            </p>
+          {/* Header & Stats Banner */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+            <div className="space-y-2">
+              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none px-3 py-1 font-bold">
+                <TrendingUp className="w-3 h-3 mr-1" /> 150+ New Freelancers this week
+              </Badge>
+              <h1 className="text-4xl font-black text-slate-900 tracking-tight">Hire World-Class Talent</h1>
+              <p className="text-slate-500 text-lg max-w-xl">
+                The largest marketplace for vetted Nigerian developers, designers, and marketers.
+              </p>
+            </div>
           </div>
 
-          {/* Search & Filter Bar */}
-          <Card className="mb-8 border-none shadow-sm">
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+          {/* Enhanced Search Bar */}
+          <Card className="mb-10 border-none shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden">
+            <CardContent className="p-2 md:p-3">
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="relative flex-[2]">
+                  <Search className="absolute left-4 top-4 h-5 w-5 text-slate-400" />
                   <Input
-                    placeholder="Search name or skill..."
-                    className="pl-10 border-slate-200 focus-visible:ring-emerald-500"
+                    placeholder="Search by name, skill, or role..."
+                    className="h-14 pl-12 border-none bg-transparent text-lg focus-visible:ring-0"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
                 
+                <div className="h-10 w-[1px] bg-slate-100 hidden md:block self-center" />
+
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="border-slate-200">
-                    <SelectValue placeholder="All Categories" />
+                  <SelectTrigger className="h-14 border-none bg-transparent font-bold focus:ring-0 md:w-48">
+                    <SelectValue placeholder="Category" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-slate-100">
                     <SelectItem value="all">All Categories</SelectItem>
                     <SelectItem value="web-development">Web Development</SelectItem>
                     <SelectItem value="design">Design</SelectItem>
@@ -128,50 +121,29 @@ export default function BrowseFreelancersPage() {
                   </SelectContent>
                 </Select>
 
-                <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                  <SelectTrigger className="border-slate-200">
-                    <SelectValue placeholder="All Locations" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Nigeria</SelectItem>
-                    <SelectItem value="Lagos">Lagos</SelectItem>
-                    <SelectItem value="Abuja">Abuja</SelectItem>
-                    <SelectItem value="Port Harcourt">Port Harcourt</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Button className="bg-emerald-600 hover:bg-emerald-700 font-semibold shadow-sm shadow-emerald-200">
-                  Search Professionals
+                <Button className="h-14 md:px-8 bg-slate-900 hover:bg-emerald-600 text-white font-black rounded-2xl transition-all">
+                  Search Talents
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Loading State */}
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+            <div className="flex flex-col items-center justify-center py-32 space-y-4">
               <Loader2 className="h-12 w-12 text-emerald-600 animate-spin" />
-              <p className="text-slate-500">Fetching talent from across Nigeria...</p>
+              <p className="text-slate-500 font-bold animate-pulse">Scanning the network for talent...</p>
             </div>
           ) : (
             <>
-              {/* Results Metadata */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-slate-600">
-                    Found {filteredFreelancers.length} available freelancers
-                  </span>
-                  {(selectedCategory !== "all" || selectedLocation !== "all" || searchQuery !== "") && (
-                     <Button variant="ghost" onClick={clearFilters} className="h-8 text-xs text-red-500 hover:text-red-600">
-                        Reset Filters
-                     </Button>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-slate-500">Sort by:</span>
+              {/* Sort & Filter Results */}
+              <div className="flex justify-between items-center mb-8">
+                <p className="text-sm font-bold text-slate-500">
+                  <span className="text-slate-900 font-black">{filteredFreelancers.length}</span> professionals ready to work
+                </p>
+                <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm ring-1 ring-slate-200">
+                  <span className="text-[10px] uppercase tracking-widest font-black text-slate-400 pl-2">Sort By</span>
                   <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-40 border-none bg-transparent font-semibold focus:ring-0">
+                    <SelectTrigger className="h-8 w-36 border-none bg-slate-50 font-bold text-xs rounded-lg">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -185,61 +157,71 @@ export default function BrowseFreelancersPage() {
               </div>
 
               {/* Freelancer Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredFreelancers.map((freelancer) => (
-                  <Card key={freelancer.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden">
-                    <CardHeader className="pb-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 font-bold text-xl border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <Card key={freelancer.id} className="border-none shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 rounded-[2rem] overflow-hidden group bg-white">
+                    <CardHeader className="p-6 pb-0">
+                      <div className="flex justify-between items-start">
+                        <div className="relative">
+                          <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-900 font-black text-2xl border-2 border-white shadow-inner group-hover:bg-emerald-600 group-hover:text-white transition-all duration-500">
                             {freelancer.avatar}
                           </div>
-                          <div>
-                            <CardTitle className="text-lg text-slate-900">{freelancer.name}</CardTitle>
-                            <p className="text-emerald-600 text-xs font-semibold uppercase tracking-wider">{freelancer.title}</p>
-                          </div>
+                          {freelancer.isVetted && (
+                            <div className="absolute -right-2 -top-2 bg-emerald-500 text-white p-1 rounded-full border-2 border-white shadow-sm">
+                              <ShieldCheck className="w-3 h-3" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black text-slate-900">₦{freelancer.hourlyRate.toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Per Hour</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 mt-3">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="text-sm font-bold text-slate-700">{freelancer.rating}</span>
-                        <span className="text-xs text-slate-400">({freelancer.reviews} reviews)</span>
+                      
+                      <div className="mt-4 space-y-1">
+                        <CardTitle className="text-xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
+                          {freelancer.name}
+                        </CardTitle>
+                        <p className="text-emerald-600 font-bold text-sm">{freelancer.title}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-3 bg-slate-50 w-fit px-2 py-1 rounded-lg">
+                        <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                        <span className="text-xs font-black text-slate-700">{freelancer.rating}</span>
+                        <span className="text-[10px] text-slate-400 font-bold">({freelancer.reviews} reviews)</span>
                       </div>
                     </CardHeader>
 
-                    <CardContent className="space-y-4">
-                      <CardDescription className="text-slate-600 text-sm line-clamp-3 h-15">
+                    <CardContent className="p-6 space-y-6">
+                      <CardDescription className="text-slate-600 text-sm leading-relaxed line-clamp-3">
                         {freelancer.description}
                       </CardDescription>
 
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {freelancer.skills.slice(0, 3).map((skill) => (
-                          <Badge key={skill} variant="outline" className="bg-slate-50 border-slate-100 text-slate-500 text-[10px]">
+                          <Badge key={skill} className="bg-slate-50 hover:bg-slate-100 border-none text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md">
                             {skill}
                           </Badge>
                         ))}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-y-2 pt-2 border-t border-slate-50">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <div className="flex items-center justify-between py-4 border-y border-slate-50">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
                           <MapPin className="h-3.5 w-3.5" /> {freelancer.location.split(',')[0]}
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Briefcase className="h-3.5 w-3.5" /> {freelancer.completedJobs} jobs
-                        </div>
-                        <div className="text-emerald-700 font-bold text-sm">
-                          ₦{freelancer.hourlyRate.toLocaleString()}/hr
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                          <Zap className="h-3.5 w-3.5 text-orange-500 fill-orange-500" /> {freelancer.completedJobs} projects
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-2">
-                      <Button 
-                        variant="outline" 
-                        className="flex-1 border-slate-200 text-slate-700 hover:bg-slate-50"
-                        onClick={() => navigate(`/profile/${freelancer.id}`)} // This triggers the navigation
-                      >
-                        View Profile
-                      </Button>
+                      <div className="flex gap-3 pt-2">
+                        <Button 
+                          variant="outline" 
+                          className="flex-1 h-12 rounded-xl border-slate-200 font-bold hover:bg-slate-50 text-slate-700 transition-all"
+                          onClick={() => navigate(`/profile/${freelancer.id}`)}
+                        >
+                          Profile
+                        </Button>
                         <ChatButton
                           otherUser={{
                             id: freelancer.id.toString(),
@@ -247,7 +229,7 @@ export default function BrowseFreelancersPage() {
                             avatar: freelancer.avatar,
                             role: "freelancer",
                           }}
-                          projectTitle="General Inquiry"
+                          projectTitle="Hire Inquiry"
                         />
                       </div>
                     </CardContent>
@@ -255,11 +237,14 @@ export default function BrowseFreelancersPage() {
                 ))}
               </div>
 
-              {/* Empty State */}
               {filteredFreelancers.length === 0 && (
-                 <div className="text-center py-24">
-                    <p className="text-slate-400">No freelancers found matching your criteria.</p>
-                    <Button variant="link" onClick={clearFilters} className="text-emerald-600">Clear all filters</Button>
+                 <div className="text-center py-32 bg-white rounded-[3rem] mt-8 border-2 border-dashed border-slate-100">
+                    <div className="mb-4 inline-flex h-20 w-20 items-center justify-center rounded-full bg-slate-50 text-slate-200">
+                      <Search className="h-10 w-10" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900">No matches found</h3>
+                    <p className="text-slate-400 mt-1">Try broadening your search or resetting filters.</p>
+                    <Button variant="link" onClick={() => { setSearchQuery(""); setSelectedCategory("all"); setSelectedLocation("all"); }} className="text-emerald-600 font-bold mt-4">Reset everything</Button>
                  </div>
               )}
             </>

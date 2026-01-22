@@ -8,19 +8,25 @@ import { Input } from "../components/ui/Input";
 import { Card, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/Tabs";
-// import { Avatar, AvatarFallback } from "../components/ui/Avatar";
 import { 
   Search, MapPin, DollarSign, SlidersHorizontal, Check, Clock, X, Loader2 
 } from "lucide-react";
 import { toast } from "sonner";
+import { APP_CATEGORIES } from "../constants/categories";
 
 const LOCATIONS = ["All", "Lagos", "Abuja", "Port Harcourt", "Ibadan", "Remote"];
-const CATEGORIES = ["All", "Web Development", "UI/UX Design", "Content Writing", "Marketing"];
+
+// Map categories to a consistent Label/Value pair
+const CATEGORY_OPTIONS = [
+  { label: "All Categories", value: "All" },
+  ...APP_CATEGORIES.map(c => ({ label: c.name, value: c.id }))
+];
 
 export default function SearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
+  // URL Params
   const queryParam = searchParams.get("search") || "";
   const categoryParam = searchParams.get("category") || "All";
   const locationParam = searchParams.get("location") || "All";
@@ -31,19 +37,24 @@ export default function SearchPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState(queryParam);
 
+  // Helper to find Display Name from Slug
+  const getCategoryLabel = (slug) => {
+    const cat = APP_CATEGORIES.find(c => c.id === slug);
+    return cat ? cat.name : slug;
+  };
+
   // --- 1. DATA FETCHING ---
   const loadJobs = useCallback(async (params) => {
     setLoading(true);
     try {
       const response = await fetchJobs({
-        search: params.search !== "" ? params.search : undefined,
+        search: params.search || undefined,
         category: params.category !== "All" ? params.category : undefined,
         location: params.location !== "All" ? params.location : undefined,
       });
       setJobs(response.data?.data || []);
     } catch (error) {
       toast.error("Failed to fetch jobs.");
-      console.error("SEARCH_ERROR:", error);
     } finally {
       setLoading(false);
     }
@@ -51,14 +62,17 @@ export default function SearchPage() {
 
   // --- 2. FILTER & URL LOGIC ---
   const updateFilters = useCallback((newFilters) => {
-    const current = Object.fromEntries(searchParams.entries());
-    const merged = { ...current, ...newFilters };
+    const params = new URLSearchParams(searchParams);
     
-    if (merged.category === "All") delete merged.category;
-    if (merged.location === "All") delete merged.location;
-    if (!merged.search) delete merged.search;
+    Object.entries(newFilters).forEach(([key, value]) => {
+      if (value === "All" || value === "" || !value) {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
 
-    setSearchParams(merged, { replace: true });
+    setSearchParams(params, { replace: true });
   }, [searchParams, setSearchParams]);
 
   const resetFilters = useCallback(() => {
@@ -69,10 +83,12 @@ export default function SearchPage() {
   // Handle Debounced Search
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      updateFilters({ search: searchTerm });
+      if (searchTerm !== queryParam) {
+        updateFilters({ search: searchTerm });
+      }
     }, 500);
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, updateFilters]);
+  }, [searchTerm, queryParam, updateFilters]);
 
   // Sync data with URL changes
   useEffect(() => {
@@ -102,7 +118,7 @@ export default function SearchPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="absolute right-5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full text-slate-400">
+                <button onClick={() => {setSearchTerm(""); updateFilters({search: ""})}} className="absolute right-5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full text-slate-400">
                   <X size={18} />
                 </button>
               )}
@@ -111,6 +127,7 @@ export default function SearchPage() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
+          {/* Sidebar Filters */}
           <aside className={`lg:w-72 space-y-6 ${showFilters ? 'block' : 'hidden lg:block'}`}>
             <Card className="border-none shadow-sm p-6 sticky top-8 rounded-3xl">
                 <div className="flex items-center justify-between mb-6">
@@ -144,14 +161,14 @@ export default function SearchPage() {
                         <SlidersHorizontal className="w-3 h-3" /> Category
                     </h3>
                     <div className="space-y-1">
-                    {CATEGORIES.map(cat => (
+                    {CATEGORY_OPTIONS.map(cat => (
                         <button 
-                          key={cat}
-                          onClick={() => updateFilters({ category: cat })}
-                          className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all flex justify-between items-center ${categoryParam === cat ? 'bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-100' : 'text-slate-600 hover:bg-slate-50'}`}
+                          key={cat.value}
+                          onClick={() => updateFilters({ category: cat.value })}
+                          className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all flex justify-between items-center ${categoryParam === cat.value ? 'bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-100' : 'text-slate-600 hover:bg-slate-50'}`}
                         >
-                          {cat}
-                          {categoryParam === cat && <Check className="w-4 h-4" />}
+                          {cat.label}
+                          {categoryParam === cat.value && <Check className="w-4 h-4" />}
                         </button>
                     ))}
                     </div>
@@ -192,7 +209,9 @@ export default function SearchPage() {
                                         <div className="p-6 flex-1 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                                             <div className="space-y-3">
                                                 <div className="flex gap-2">
-                                                    <Badge className="bg-emerald-50 text-emerald-700 border-none px-3 py-1 text-[10px] font-black uppercase">{job.category}</Badge>
+                                                    <Badge className="bg-emerald-50 text-emerald-700 border-none px-3 py-1 text-[10px] font-black uppercase">
+                                                      {getCategoryLabel(job.category)}
+                                                    </Badge>
                                                     <Badge className="bg-slate-50 text-slate-500 border-none px-3 py-1 text-[10px] font-black uppercase">{job.experience_level || 'Intermediate'}</Badge>
                                                 </div>
                                                 <h3 className="text-xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">{job.title}</h3>
@@ -221,7 +240,6 @@ export default function SearchPage() {
                             <NoResults resetFilters={resetFilters} />
                         )
                     ) : (
-                        /* Placeholder for Freelancer results */
                         <div className="text-center py-20">
                             <p className="text-slate-400 font-bold uppercase tracking-widest">Freelancer search coming soon...</p>
                         </div>
@@ -235,7 +253,6 @@ export default function SearchPage() {
   );
 }
 
-// Sub-component to keep main code clean
 function NoResults({ resetFilters }) {
   return (
     <div className="bg-white rounded-3xl p-16 text-center border-2 border-dashed border-slate-100">

@@ -41,40 +41,49 @@ export const createJob = async (req, res) => {
 };
 
 // --- GET ALL JOBS (Search & Filter) ---
+
 export const getJobs = async (req, res) => {
   try {
     let sql = "SELECT * FROM jobs WHERE status = 'open'";
     const params = [];
+    // Destructure params from req.query
     const { search, category, location, state, minBudget, maxBudget } = req.query;
 
     if (search && search.trim() !== "") {
       sql += " AND (title LIKE ? OR description LIKE ?)";
       params.push(`%${search}%`, `%${search}%`);
     }
-    if (category && category !== "All") {
+
+    // ✨ FIX: Ensure we aren't filtering if category is "All" or empty string
+    if (category && category !== "All" && category !== "" && category !== "all") {
       sql += " AND category = ?";
       params.push(category);
     }
-    if (location && location !== "All") {
-      sql += " AND location LIKE ?";
-      params.push(`%${location}%`);
+
+    if (location && location !== "All" && location !== "all") {
+      // Use exact match or LIKE depending on your UI
+      sql += " AND location = ?"; 
+      params.push(location);
     }
-    if (state && state !== "All") {
+
+    if (state && state !== "All" && state !== "all") {
       sql += " AND state = ?";
       params.push(state);
     }
-    if (minBudget) {
+
+    // Budget filtering logic
+    if (minBudget && !isNaN(minBudget)) {
       sql += " AND budget_min >= ?";
-      params.push(minBudget);
+      params.push(Number(minBudget));
     }
-    if (maxBudget) {
+    if (maxBudget && !isNaN(maxBudget)) {
       sql += " AND budget_max <= ?";
-      params.push(maxBudget);
+      params.push(Number(maxBudget));
     }
 
     sql += " ORDER BY created_at DESC";
 
-    const [results] = await db.query(sql, params);
+    const [results] = await db.query(sql, params); // Use .query for standard arrays
     
     const jobs = results.map(job => ({
       ...job,
@@ -83,6 +92,7 @@ export const getJobs = async (req, res) => {
     
     return res.status(200).json({ success: true, data: jobs });
   } catch (error) {
+    console.error("GET_JOBS_ERROR:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -306,6 +316,48 @@ export const toggleSaveJob = async (req, res) => {
   } catch (error) {
     // If there is a Foreign Key constraint error, it will show up here
     console.error("SQL Error in toggleSaveJob:", error); 
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// backend/controllers/jobController.js
+
+// backend/controllers/jobController.js
+export const getRecommendedJobs = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Get the user's skills from their profile
+    const [userRows] = await db.execute(
+      "SELECT skills FROM users WHERE id = ?", 
+      [userId]
+    );
+
+    const rawSkills = userRows[0]?.skills;
+
+    // 2. If user has no skills set, just return the 3 latest jobs
+    if (!rawSkills) {
+      const [latest] = await db.execute(
+        "SELECT * FROM jobs WHERE status = 'open' ORDER BY created_at DESC LIMIT 3"
+      );
+      return res.json({ success: true, data: latest });
+    }
+
+    // 3. Matchmaker Logic: Clean the skills and build the SQL query
+    const userSkills = rawSkills.split(',').map(s => s.trim()).filter(s => s !== "");
+
+    // We look for jobs where the skill string contains any of the user's skills
+    let sql = "SELECT * FROM jobs WHERE status = 'open' AND (";
+    const skillParts = userSkills.map(() => "skills LIKE ?").join(" OR ");
+    sql += skillParts + ") ORDER BY created_at DESC LIMIT 3";
+
+    const params = userSkills.map(skill => `%${skill}%`);
+
+    const [recommended] = await db.execute(sql, params);
+    
+    res.json({ success: true, data: recommended });
+  } catch (error) {
+    console.error("RECOMMENDED_ERR:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

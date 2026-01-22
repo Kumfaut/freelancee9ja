@@ -1,31 +1,41 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "../components/ui/Button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Label } from "../components/ui/Label";
 import { Switch } from "../components/ui/Switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs";
-import { RadioGroup, RadioGroupItem } from "../components/ui/RadioGroup";
 import { 
   Bell, Lock, CreditCard, User, Shield, 
-  Eye, EyeOff, Trash2, AlertTriangle, LogOut, Camera 
+  Eye, EyeOff, Trash2, LogOut, Camera 
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
 
 export default function SettingsPage({ onNavigate }) {
+  const { user, logout } = useAuth();
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
 
-  // --- State Management ---
   const [accountSettings, setAccountSettings] = useState({
-    name: "Adebayo Ogundimu",
-    email: "adebayo.ogundimu@gmail.com",
-    phone: "+234 803 123 4567",
+    name: user?.full_name || "",
+    email: user?.email || "",
+    phone: user?.phone || "+234 ...",
     twoFactorEnabled: false,
     profileVisibility: "public"
   });
+
+  useEffect(() => {
+    if (user) {
+      setAccountSettings(prev => ({
+        ...prev,
+        name: user.full_name || "",
+        email: user.email || ""
+      }));
+    }
+  }, [user]);
 
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
@@ -39,7 +49,7 @@ export default function SettingsPage({ onNavigate }) {
     minimumBalance: 50000,
     bankName: "GTBank",
     accountNumber: "0123456789",
-    accountName: "Adebayo Ogundimu"
+    accountName: user?.full_name || ""
   });
 
   const [privacySettings, setPrivacySettings] = useState({
@@ -47,15 +57,13 @@ export default function SettingsPage({ onNavigate }) {
     showOnlineStatus: true
   });
 
-  // --- Handlers ---
   const handleSaveSettings = () => {
     toast.success("Changes saved successfully!");
   };
 
   const handleSignOut = () => {
-    // Fixed "no-restricted-globals" by using window.confirm
     if (window.confirm("Are you sure you want to sign out?")) {
-      toast.info("Signing out...");
+      logout();
       if (onNavigate) onNavigate('login');
     }
   };
@@ -71,7 +79,6 @@ export default function SettingsPage({ onNavigate }) {
     <div className="min-h-screen bg-slate-50/50 py-10">
       <div className="container mx-auto px-4 max-w-5xl">
         
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
@@ -96,36 +103,47 @@ export default function SettingsPage({ onNavigate }) {
           <TabsContent value="account">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-emerald-600"><User className="w-5 h-5" />Profile Details</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-emerald-600">
+                  <User className="w-5 h-5" />Profile Details
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-4">
                    <div className="relative">
-                      <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center font-bold">AO</div>
-                      <button className="absolute bottom-0 right-0 bg-emerald-600 text-white p-1 rounded-full"><Camera className="w-3 h-3" /></button>
+                      <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center font-bold uppercase text-slate-600">
+                        {accountSettings.name ? accountSettings.name.substring(0, 2) : "UN"}
+                      </div>
+                      <button className="absolute bottom-0 right-0 bg-emerald-600 text-white p-1 rounded-full">
+                        <Camera className="w-3 h-3" />
+                      </button>
                    </div>
                    <p className="text-sm text-slate-500">Update your profile picture</p>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Full Name</Label>
-                    <Input value={accountSettings.name} onChange={(e) => setAccountSettings(p => ({...p, name: e.target.value}))} />
+                    <Input 
+                      value={accountSettings.name} 
+                      onChange={(e) => setAccountSettings(p => ({...p, name: e.target.value}))} 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>
                     <Input value={accountSettings.email} disabled />
                   </div>
                 </div>
-                <Button onClick={handleSaveSettings} className="bg-emerald-600">Save Profile</Button>
+                <Button onClick={handleSaveSettings} className="bg-emerald-600 text-white">Save Profile</Button>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* --- NOTIFICATIONS TAB (Fixed unused variable) --- */}
+          {/* --- NOTIFICATIONS TAB --- */}
           <TabsContent value="notifications">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Notifications</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5" />Notifications
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -150,7 +168,9 @@ export default function SettingsPage({ onNavigate }) {
           <TabsContent value="payment">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><CreditCard className="w-5 h-5" />Bank Details</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />Bank Details
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-4 border rounded-lg bg-slate-50">
@@ -159,17 +179,22 @@ export default function SettingsPage({ onNavigate }) {
                 </div>
                 <div className="flex items-center justify-between">
                   <Label>Auto-Withdrawal</Label>
-                  <Switch checked={paymentSettings.autoWithdraw} onCheckedChange={(v) => setPaymentSettings(p => ({...p, autoWithdraw: v}))} />
+                  <Switch 
+                    checked={paymentSettings.autoWithdraw} 
+                    onCheckedChange={(v) => setPaymentSettings(p => ({...p, autoWithdraw: v}))} 
+                  />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* --- PRIVACY TAB (Fixed unused variable) --- */}
+          {/* --- PRIVACY TAB --- */}
           <TabsContent value="privacy">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Shield className="w-5 h-5" />Privacy</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />Privacy
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -183,10 +208,14 @@ export default function SettingsPage({ onNavigate }) {
             </Card>
           </TabsContent>
 
-          {/* --- SECURITY TAB (Fixed unused variable) --- */}
+          {/* --- SECURITY TAB --- */}
           <TabsContent value="security" className="space-y-6">
             <Card>
-              <CardHeader><CardTitle>Change Password</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="w-5 h-5" />Change Password
+                </CardTitle>
+              </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative">
                   <Input type={showCurrentPassword ? "text" : "password"} placeholder="Current Password" />
@@ -200,14 +229,16 @@ export default function SettingsPage({ onNavigate }) {
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <Button className="bg-emerald-600">Update Password</Button>
+                <Button className="bg-emerald-600 text-white">Update Password</Button>
               </CardContent>
             </Card>
 
             <Card className="border-red-200">
               <CardHeader><CardTitle className="text-red-600">Danger Zone</CardTitle></CardHeader>
               <CardContent>
-                <Button variant="destructive" onClick={handleDeleteAccount}><Trash2 className="w-4 h-4 mr-2" />Delete Account</Button>
+                <Button variant="destructive" onClick={handleDeleteAccount}>
+                  <Trash2 className="w-4 h-4 mr-2" />Delete Account
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -215,9 +246,4 @@ export default function SettingsPage({ onNavigate }) {
       </div>
     </div>
   );
-}
-
-// Simple internal Badge if missing
-function Badge({ children, className }) {
-  return <span className={`px-2 py-1 rounded text-xs font-bold ${className}`}>{children}</span>;
 }
