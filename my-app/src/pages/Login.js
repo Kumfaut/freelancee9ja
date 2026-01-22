@@ -45,7 +45,9 @@ export default function LoginPage() {
       login(user, token);
 
       // Redirect
-      if (user.role === "client") {
+      if (user.role === "admin") {
+        navigate("/admin/dashboard");
+      } else if (user.role === "client") {
         navigate("/client-dashboard");
       } else {
         navigate("/freelancer-dashboard");

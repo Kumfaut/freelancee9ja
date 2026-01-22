@@ -25,6 +25,7 @@ export function Navbar() {
   const { user, logout, isLoggedIn, setUser } = useAuth(); 
   const navigate = useNavigate();
   const location = useLocation();
+
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);

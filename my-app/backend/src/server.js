@@ -15,6 +15,7 @@ import messageRoutes from "./routes/messageRoutes.js";
 import proposalRoutes from "./routes/proposalRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js"
 import { verifyToken } from "./middleware/authMiddleware.js";
 
 
@@ -80,7 +81,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/contracts", contractRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/wallet", paymentRoutes);
-// Add this line to server.js
+app.use('/api/admin', adminRoutes);
 app.use('/uploads', express.static('uploads'));
 
 

@@ -40,7 +40,10 @@ import PublicProfile from "./pages/PublicProfile";
 import ManageProposals from "./pages/ManageProposals";
 import ContractDetails from "./pages/ContractDetails";
 import MyProjects from "./pages/MyProjects";
-import CreateOffer from "./pages/CreateOffer"; // Import the new page
+import CreateOffer from "./pages/CreateOffer"; 
+import AdminProtectedRoute from './components/auth/AdminProtectedRoute';
+import AdminLogin from "./components/auth/AdminLogin";
+import AdminDashboard from "./components/admin/AdminDashboard";
 
 
 
@@ -76,6 +79,7 @@ export default function App() {
             <Route path="/job/:id" element={<JobDetailsPage />} />
             <Route path="/freelancer/:id" element={<FreelancerProfilePage />} />
             <Route path="/profile/:id" element={<PublicProfile />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
             
             {/* Legal & Help */}
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
@@ -113,6 +117,12 @@ export default function App() {
             <Route path="/manage-project/:projectId" element={<ProtectedRoute allowedRole="client"><ClientProjectDashboard /></ProtectedRoute>} />
             <Route path="/manage-proposals/:jobId" element={<ProtectedRoute allowedRole="client"><ManageProposals /> </ProtectedRoute>} />
             <Route path="/create-offer/:freelancerId" element={<ProtectedRoute allowedRole="client"><CreateOffer /></ProtectedRoute>} />
+
+            {/* ==========================================
+                ADMIN SPECIFIC ROUTES
+                ========================================== */}
+
+            <Route path="/admin/dashboard" element={<AdminProtectedRoute> <AdminDashboard /></AdminProtectedRoute> } />
 
           </Routes>
         </main>
