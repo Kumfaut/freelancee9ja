@@ -28,6 +28,11 @@ export const createReview = async (req, res) => {
     `;
     await db.execute(sql, [contract_id, reviewer_id, reviewee_id, rating, comment]);
 
+    await db.execute(
+      "UPDATE contracts SET status = 'closed' WHERE id = ?",
+      [contract_id]
+    );
+
     // 3. Create a notification for the person being reviewed
     await db.execute(
       "INSERT INTO notifications (user_id, type, content) VALUES (?, 'payment', ?)",

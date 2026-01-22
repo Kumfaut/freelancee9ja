@@ -1,6 +1,39 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import db from "../config/db.js";
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+// Ensure upload directory exists
+const uploadDir = 'uploads/cvs/';
+if (!fs.existsSync(uploadDir)){
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// --- MULTER CONFIGURATION ---
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/cvs/'); // Ensure this folder exists!
+  },
+  filename: (req, file, cb) => {
+    // Save file as: userId-timestamp.pdf
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `cv-${req.user.id}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+export const upload = multer({ 
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === "application/pdf" || file.mimetype.includes("msword") || file.mimetype.includes("officedocument")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF and Word documents allowed"), false);
+    }
+  }
+});
+
 
 // 1. REGISTER USER
 export const registerUser = async (req, res) => {
@@ -82,29 +115,81 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// 4. GET PUBLIC PROFILE (For others to see)
+// 4. GET PUBLIC PROFILE (Updated to include Skills and CV)
 export const getPublicProfile = async (req, res) => {
   const { id } = req.params;
-  console.log(`Backend: Fetching public profile for ID: ${id}`);
 
   try {
-    const [rows] = await db.execute(
-      "SELECT id, full_name, bio, profile_image, title, hourlyRate FROM users WHERE id = ?",
+    // 1. Get user details - Added 'skills' to the selection
+    const [user] = await db.execute(
+      "SELECT id, full_name, title, bio, location, hourlyRate, profile_image, cv_url, skills FROM users WHERE id = ?", 
       [id]
     );
 
-    if (rows.length === 0) {
+    if (user.length === 0) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Return the user object directly
-    res.status(200).json(rows[0]);
+    // 2. Get reviews for this user
+    const [reviews] = await db.execute(`
+      SELECT r.rating, r.comment, r.created_at, u.full_name as reviewer_name 
+      FROM reviews r 
+      JOIN users u ON r.reviewer_id = u.id 
+      WHERE r.reviewee_id = ? 
+      ORDER BY r.created_at DESC`, 
+      [id]
+    );
+
+    const profileData = { ...user[0] };
+    
+    // Fix Windows path slashes for the browser
+    if (profileData.cv_url) {
+      profileData.cv_url = profileData.cv_url.replace(/\\/g, '/');
+    }
+
+    // Parse skills if they are stored as a JSON string
+    if (profileData.skills && typeof profileData.skills === 'string') {
+        try {
+            profileData.skills = JSON.parse(profileData.skills);
+        } catch (e) {
+            profileData.skills = profileData.skills.split(','); // Fallback for comma-separated strings
+        }
+    }
+
+    res.status(200).json({ 
+      ...profileData, 
+      reviews: reviews || [] 
+    });
+
   } catch (error) {
     console.error("Public Profile Error:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
+// --- SETUP PROFILE (Saves skills as JSON string) ---
+export const setupProfile = async (req, res) => {
+  const { tagline, bio, skills, hourlyRate } = req.body;
+  const userId = req.user.id;
+  const cvPath = req.file ? req.file.path : null;
+
+  try {
+    // If skills is an array, stringify it for the database
+    const skillsToStore = Array.isArray(skills) ? JSON.stringify(skills) : skills;
+
+    await db.execute(
+      `UPDATE users SET 
+        title = ?, bio = ?, skills = ?, hourlyRate = ?, cv_url = ?, is_setup_complete = 1 
+      WHERE id = ?`,
+      [tagline, bio, skillsToStore, hourlyRate, cvPath, userId]
+    );
+
+    res.status(200).json({ success: true, message: "Profile updated successfully" });
+  } catch (error) {
+    console.error("Setup Profile Error:", error);
+    res.status(500).json({ success: false, message: "Database update failed" });
+  }
+};
 // 5. UPDATE PROFILE
 export const updateProfile = async (req, res) => {
   try {
@@ -122,7 +207,7 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// 6. GET ALL USERS (Admin/Search)
+// 6. GET ALL USERS
 export const getUsers = async (req, res) => {
   try {
     const [results] = await db.query("SELECT id, full_name, email, role FROM users");
@@ -165,3 +250,38 @@ export const getTopFreelancers = async (req, res) => {
     });
   }
 };
+
+export const getFreelancerStats = async (req, res) => {
+  const userId = req.user.id; 
+
+  try {
+    // 1. Get Sum of Earnings (Matches your Row 23/24)
+    const [earnings] = await db.execute(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE user_id = ? AND type = 'payment' AND status = 'completed'",
+      [userId]
+    );
+
+    // 2. Get Count of Active Contracts
+    const [activeJobs] = await db.execute(
+      "SELECT COUNT(*) as activeCount FROM contracts WHERE freelancer_id = ? AND status = 'active'",
+      [userId]
+    );
+
+    // 3. Get Average Rating (FIXED: Using reviewee_id instead of receiver_id)
+    const [ratings] = await db.execute(
+      "SELECT COALESCE(AVG(rating), 0) as avgRating FROM reviews WHERE reviewee_id = ?",
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      totalEarnings: earnings[0].total,
+      activeJobs: activeJobs[0].activeCount,
+      rating: parseFloat(ratings[0].avgRating || 0).toFixed(1)
+    });
+  } catch (error) {
+    console.error("Stats API Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+

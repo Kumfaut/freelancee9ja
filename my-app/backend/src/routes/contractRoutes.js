@@ -8,7 +8,8 @@ import {
   requestMilestoneRevision,
   getContractMilestones,
   addMilestone,
-  disputeMilestone 
+  disputeMilestone,
+  completeProject 
 } from "../controllers/contractController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
@@ -19,6 +20,8 @@ router.post("/hire", verifyToken, hireFreelancer);
 
 // Must match: axios.post(.../release-milestone)
 router.post("/:id/release-milestone", verifyToken, releaseMilestone);
+
+router.post("/:id/complete", verifyToken, completeProject);
 
 // Must match: axios.post(.../submit-milestone)
 router.post("/:id/submit-milestone", verifyToken, submitContractWork); 

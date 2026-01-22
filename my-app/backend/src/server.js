@@ -80,6 +80,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/contracts", contractRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/wallet", paymentRoutes);
+// Add this line to server.js
+app.use('/uploads', express.static('uploads'));
 
 
 // Protected route example

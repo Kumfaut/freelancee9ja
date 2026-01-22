@@ -37,9 +37,14 @@ export default function ContractDetails() {
   // --- SUBMISSION LOGIC ---
   const handleSubmitWork = async () => {
     const note = prompt("Enter a brief note about your submission:");
-    const link = prompt("Paste the link to your work (e.g., Google Drive, GitHub, or Cloud link):");
+    // Inside handleSubmitWork
+      const link = prompt("Paste the link to your work (e.g., Google Drive, GitHub, or Cloud link):");
 
-    if (!link) return;
+      // Basic validation to ensure it's a URL
+      if (!link || (!link.startsWith('http://') && !link.startsWith('https://'))) {
+        toast.error("Please provide a valid URL starting with http:// or https://");
+        return;
+      }
 
     try {
       setIsSubmitting(true);
@@ -92,9 +97,15 @@ export default function ContractDetails() {
               <div className={`h-1.5 w-full ${isCompleted ? 'bg-blue-500' : 'bg-emerald-500'}`} />
               <CardHeader className="bg-white pb-2">
                 <div className="flex justify-between items-center mb-2">
-                  <Badge className={`${isCompleted ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'} border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest`}>
-                    {isCompleted ? "Pending Client Review" : "Active Contract"}
-                  </Badge>
+                <Badge className={`${
+                  contract.status === 'completed' ? 'bg-blue-50 text-blue-700' : 
+                  contract.status === 'pending_review' ? 'bg-yellow-50 text-yellow-700' : 
+                  'bg-emerald-50 text-emerald-700'
+                } border-none px-3 py-1 text-[10px] font-black uppercase tracking-widest`}>
+                  {contract.status === 'completed' ? "Job Finished" : 
+                  contract.status === 'pending_review' ? "Awaiting Client Approval" : 
+                  "Active Contract"}
+                </Badge>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Ref: #{contract.id}</span>
                 </div>
                 <CardTitle className="text-3xl font-black text-slate-900 leading-tight">

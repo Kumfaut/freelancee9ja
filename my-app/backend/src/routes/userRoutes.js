@@ -6,9 +6,14 @@ import {
   getUserProfile, 
   updateProfile,
   getPublicProfile,
-  getTopFreelancers 
+  getTopFreelancers,
+  getFreelancerStats,
+  setupProfile,
+  upload
 } from "../controllers/userController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
+
+
 
 const router = express.Router();
 
@@ -17,8 +22,11 @@ router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/", getUsers);
 
+router.post('/setup-profile', verifyToken, upload.single('cv'), setupProfile);
+
 // 1. Specific static path FIRST
 router.get("/freelancers/top", getTopFreelancers);
+router.get("/stats", verifyToken, getFreelancerStats);
 
 // 2. Dynamic parameter path SECOND
 router.get("/public/:id", getPublicProfile);

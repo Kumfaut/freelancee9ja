@@ -33,19 +33,44 @@ export const getInbox = async (req, res) => {
 };
 
 export const sendMessage = async (req, res) => {
-  const { conversation_id, receiver_id, message_text } = req.body;
+  let { conversation_id, receiver_id, message_text } = req.body;
   const sender_id = req.user.id;
 
   try {
-    // 1. Save to DB
+    // --- NEW LOGIC: HANDLE MISSING CONVERSATION_ID ---
+    if (!conversation_id) {
+      // Check if a conversation record already exists between these two people
+      const [existing] = await db.query(
+        "SELECT id FROM conversations WHERE (user_one = ? AND user_two = ?) OR (user_one = ? AND user_two = ?)",
+        [sender_id, receiver_id, receiver_id, sender_id]
+      );
+
+      if (existing.length > 0) {
+        conversation_id = existing[0].id;
+      } else {
+        // Create new conversation entry
+        const [newConv] = await db.query(
+          "INSERT INTO conversations (user_one, user_two, last_message) VALUES (?, ?, ?)",
+          [sender_id, receiver_id, message_text]
+        );
+        conversation_id = newConv.insertId;
+      }
+    }
+
+    // 1. Save to DB (Now conversation_id is guaranteed to have a value)
     const [result] = await db.query(
       "INSERT INTO messages (conversation_id, sender_id, receiver_id, message_text) VALUES (?, ?, ?, ?)",
       [conversation_id, sender_id, receiver_id, message_text]
     );
 
-    // 2. Prepare the message object for the frontend/socket
+    // 2. Update the last_message in conversations table
+    await db.query(
+      "UPDATE conversations SET last_message = ?, updated_at = NOW() WHERE id = ?",
+      [message_text, conversation_id]
+    );
+
     const newMessage = {
-      id: result.insertId, // Note: Use insertId for MySQL
+      id: result.insertId,
       conversation_id,
       sender_id,
       receiver_id,
@@ -53,17 +78,13 @@ export const sendMessage = async (req, res) => {
       created_at: new Date()
     };
 
-    // 3. EMIT VIA SOCKET (Check if 'io' is imported correctly!)
-    // If you haven't attached io to req, make sure it's available here
-    // backend/src/controllers/messageController.js
+    // 3. EMIT VIA SOCKET
+    if (req.app.get("socketio")) {
+      const roomName = `conv_${conversation_id}`;
+      req.app.get("socketio").to(roomName).emit("new_message", newMessage);
+      console.log(`📡 Broadcast to: ${roomName}`); 
+    }
 
-if (req.app.get("socketio")) {
-  const roomName = `conv_${conversation_id}`; // This creates "conv_1"
-  req.app.get("socketio").to(roomName).emit("new_message", newMessage);
-  console.log(`📡 Broadcast to: ${roomName}`); 
-}
-
-    // 4. SEND ONE RESPONSE (This is where 500s usually happen)
     return res.status(201).json({ 
       success: true, 
       message: newMessage 
@@ -71,7 +92,6 @@ if (req.app.get("socketio")) {
 
   } catch (error) {
     console.error("Error in sendMessage:", error);
-    // Ensure you only send ONE error response
     if (!res.headersSent) {
       return res.status(500).json({ success: false, error: error.message });
     }

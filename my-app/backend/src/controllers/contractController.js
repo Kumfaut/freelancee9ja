@@ -2,7 +2,6 @@ import db from "../config/db.js";
 
 // --- 1. HIRE FREELANCER ---
 export const hireFreelancer = async (req, res) => {
-  // Now using proposal_id below
   const { job_id, freelancer_id, proposal_id, amount, title } = req.body;
   const client_id = req.user.id;
 
@@ -31,7 +30,7 @@ export const hireFreelancer = async (req, res) => {
         [contractId, title || "Project Phase", amount]
     );
 
-    // 4. FIX ESLINT ERROR: Use proposal_id to update the proposal status
+    // 4. Update the proposal status
     if (proposal_id) {
       await connection.execute(
         "UPDATE proposals SET status = 'accepted' WHERE id = ?",
@@ -96,8 +95,7 @@ export const getUserContracts = async (req, res) => {
   }
 };
 
-
-// --- 5. RELEASE MILESTONE ---
+// --- 4. RELEASE MILESTONE ---
 export const releaseMilestone = async (req, res) => {
   const { id: contractId } = req.params;
   const { milestoneId } = req.body;
@@ -107,61 +105,125 @@ export const releaseMilestone = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1. Check if contract exists and belongs to client
-    const [contract] = await connection.execute(
-      "SELECT freelancer_id FROM contracts WHERE id = ? AND client_id = ?",
+    const [contracts] = await connection.execute(
+      "SELECT c.freelancer_id, u.escrow_balance FROM contracts c JOIN users u ON c.client_id = u.id WHERE c.id = ? AND c.client_id = ?",
       [contractId, clientId]
     );
 
-    if (contract.length === 0) {
-      return res.status(404).json({ success: false, message: "Contract not found" });
+    if (contracts.length === 0) {
+      return res.status(404).json({ success: false, message: "Contract or Client not found" });
     }
 
-    // 2. Check if milestone exists
-    const [milestone] = await connection.execute(
-      "SELECT amount FROM milestones WHERE id = ? AND contract_id = ?",
+    const [milestones] = await connection.execute(
+      "SELECT amount, status, title FROM milestones WHERE id = ? AND contract_id = ?",
       [milestoneId, contractId]
     );
 
-    if (milestone.length === 0) {
+    if (milestones.length === 0) {
       return res.status(404).json({ success: false, message: "Milestone not found" });
     }
 
-    const amount = milestone[0].amount;
-    const freelancerId = contract[0].freelancer_id;
+    const releaseAmount = milestones[0].amount;
+    const freelancerId = contracts[0].freelancer_id;
 
-    // 3. Perform the money move
+    if (contracts[0].escrow_balance < releaseAmount) {
+      return res.status(400).json({ success: false, message: "Insufficient Escrow Balance" });
+    }
+
+    const platformFee = releaseAmount * 0.10;
+    const freelancerPayout = releaseAmount - platformFee;
+
     await connection.execute("UPDATE milestones SET status = 'completed' WHERE id = ?", [milestoneId]);
-    await connection.execute("UPDATE users SET balance = balance + ? WHERE id = ?", [amount, freelancerId]);
-    await connection.execute("UPDATE users SET escrow_balance = escrow_balance - ? WHERE id = ?", [amount, clientId]);
+    await connection.execute("UPDATE users SET balance = balance + ? WHERE id = ?", [freelancerPayout, freelancerId]);
+    await connection.execute("UPDATE users SET escrow_balance = escrow_balance - ? WHERE id = ?", [releaseAmount, clientId]);
 
-    // 4. Log Transaction
+    const txnReference = `NT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     await connection.execute(
-      "INSERT INTO transactions (user_id, amount, type, status, description) VALUES (?, ?, 'payment_received', 'completed', 'Milestone Payment')",
-      [freelancerId, amount]
+      "INSERT INTO transactions (user_id, amount, reference, status, description, type) VALUES (?, ?, ?, ?, ?, ?)",
+      [freelancerId, freelancerPayout, txnReference, 'completed', `Payout: ${milestones[0].title}`, 'payment']
     );
 
     await connection.commit();
-    res.json({ success: true, message: "Payment released!" });
+    res.json({ success: true, message: "Payment released! Fee deducted." });
   } catch (error) {
-    await connection.rollback();
+    if (connection) await connection.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+// --- 5. COMPLETE PROJECT (Final Settlement) ---
+export const completeProject = async (req, res) => {
+  const { id: contractId } = req.params;
+  const clientId = req.user.id;
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // 1. Verify contract and ownership
+    const [contracts] = await connection.execute(
+      "SELECT freelancer_id FROM contracts WHERE id = ? AND client_id = ?", 
+      [contractId, clientId]
+    );
+    
+    if (contracts.length === 0) {
+      connection.release();
+      return res.status(404).json({ success: false, message: "Contract not found" });
+    }
+    const freelancerId = contracts[0].freelancer_id;
+
+    // 2. Fetch the Client's Escrow Balance
+    const [userRows] = await connection.execute(
+      "SELECT escrow_balance FROM users WHERE id = ?", [clientId]
+    );
+    const amountToRelease = Number(userRows[0].escrow_balance);
+
+    // 3. Perform Money Transfer
+    if (amountToRelease > 0) {
+      // Add to freelancer balance
+      await connection.execute(
+        "UPDATE users SET balance = balance + ? WHERE id = ?", 
+        [amountToRelease, freelancerId]
+      );
+      // Deduct from client escrow
+      await connection.execute(
+        "UPDATE users SET escrow_balance = escrow_balance - ? WHERE id = ?", 
+        [amountToRelease, clientId]
+      );
+    }
+
+    // 4. Finalize Statuses (Ensure these strings match your DB ENUM)
+    await connection.execute(
+      "UPDATE contracts SET status = 'closed' WHERE id = ?", 
+      [contractId]
+    );
+    
+    await connection.execute(
+      "UPDATE milestones SET status = 'completed' WHERE contract_id = ? AND status = 'funded'", 
+      [contractId]
+    );
+
+    await connection.commit();
+    res.json({ success: true, message: "Project settled and closed!" });
+
+  } catch (error) {
+    if (connection) await connection.rollback();
+    console.error("CRASH IN COMPLETE_PROJECT:", error.message);
     res.status(500).json({ success: false, message: error.message });
   } finally {
     connection.release();
   }
 };
-
-
-// FETCH ALL MILESTONES FOR A CONTRACT
+// --- ADDITIONAL UTILITIES ---
 export const getContractMilestones = async (req, res) => {
   const { id: contractId } = req.params;
   try {
     const [rows] = await db.execute(
       `SELECT id, title, amount, status, description, submission_details, 
-              submitted_at, revision_notes 
-       FROM milestones 
-       WHERE contract_id = ? 
-       ORDER BY created_at ASC`,
+              submitted_at, revision_notes FROM milestones 
+       WHERE contract_id = ? ORDER BY created_at ASC`,
       [contractId]
     );
     res.json({ success: true, data: rows });
@@ -170,18 +232,12 @@ export const getContractMilestones = async (req, res) => {
   }
 };
 
-// FREELANCER SUBMITS WORK
 export const submitContractWork = async (req, res) => {
   const { id: contractId } = req.params;
   const { milestoneId, details } = req.body; 
-  
   try {
     await db.execute(
-      `UPDATE milestones 
-       SET status = 'pending', 
-           submission_details = ?, 
-           submitted_at = NOW(),
-           revision_notes = NULL 
+      `UPDATE milestones SET status = 'pending', submission_details = ?, submitted_at = NOW() 
        WHERE id = ? AND contract_id = ?`,
       [details, milestoneId, contractId]
     );
@@ -191,27 +247,20 @@ export const submitContractWork = async (req, res) => {
   }
 };
 
-// CLIENT REQUESTS REVISION
 export const requestMilestoneRevision = async (req, res) => {
   const { id: contractId } = req.params;
   const { milestoneId, notes } = req.body;
-
   try {
     await db.execute(
-      `UPDATE milestones 
-       SET status = 'revision_requested', 
-           revision_notes = ? 
+      `UPDATE milestones SET status = 'revision_requested', revision_notes = ? 
        WHERE id = ? AND contract_id = ?`,
       [notes, milestoneId, contractId]
     );
-    res.json({ success: true, message: "Revision request sent to freelancer." });
+    res.json({ success: true, message: "Revision request sent." });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// ADD NEW MILESTONE (Used by the Modal)
-// backend/src/controllers/contractController.js
 
 export const addMilestone = async (req, res) => {
   const { id: contractId } = req.params;
@@ -221,26 +270,21 @@ export const addMilestone = async (req, res) => {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
-
-    // 1. Deduct from main balance, add to escrow
     const [user] = await connection.execute("SELECT balance FROM users WHERE id = ?", [clientId]);
-    if (user[0].balance < amount) {
-       throw new Error("Insufficient balance to fund this milestone");
-    }
+    if (user[0].balance < amount) throw new Error("Insufficient balance");
 
     await connection.execute(
       "UPDATE users SET balance = balance - ?, escrow_balance = escrow_balance + ? WHERE id = ?",
       [amount, amount, clientId]
     );
 
-    // 2. Insert the milestone
     await connection.execute(
       "INSERT INTO milestones (contract_id, title, amount, status, description) VALUES (?, ?, ?, 'funded', ?)",
       [contractId, title, amount, description]
     );
 
     await connection.commit();
-    res.status(201).json({ success: true, message: "Milestone added and funded!" });
+    res.status(201).json({ success: true, message: "Milestone added!" });
   } catch (error) {
     await connection.rollback();
     res.status(500).json({ success: false, message: error.message });
@@ -255,24 +299,16 @@ export const disputeMilestone = async (req, res) => {
   const userId = req.user.id;
 
   try {
-    // 1. Verify the user is part of the contract
-    const [contract] = await db.execute(
-      "SELECT client_id, freelancer_id FROM contracts WHERE id = ?",
-      [contractId]
-    );
-
+    const [contract] = await db.execute("SELECT client_id, freelancer_id FROM contracts WHERE id = ?", [contractId]);
     if (contract[0].client_id !== userId && contract[0].freelancer_id !== userId) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
-    // 2. Update milestone status to disputed
     await db.execute(
       "UPDATE milestones SET status = 'disputed', revision_notes = ? WHERE id = ? AND contract_id = ?",
       [reason, milestoneId, contractId]
     );
-
-    // 3. Optional: Create a notification for admin
-    res.json({ success: true, message: "Dispute opened. An admin will review the work." });
+    res.json({ success: true, message: "Dispute opened." });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
