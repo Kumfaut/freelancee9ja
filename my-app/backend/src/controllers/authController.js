@@ -23,8 +23,8 @@ export const registerUser = async (req, res) => {
 
     // 4. Insert into DB (is_verified set to 1 by default since no OTP is used)
     const [result] = await db.query(
-      "INSERT INTO users (full_name, email, password, role, phone, location, is_verified) VALUES (?, ?, ?, ?, ?, ?, 1)", 
-      [full_name, email, hashedPassword, role, phone || null, location || null]
+      "INSERT INTO users (full_name, email, phone, password, role, location, account_status, is_setup_complete) VALUES (?, ?, ?, ?, ?, ?, 'active', 0)", 
+      [full_name, email, phone || null, hashedPassword, role, location || null]
     );
 
     const userId = result.insertId;
