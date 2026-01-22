@@ -77,6 +77,7 @@ export default function App() {
             <Route path="/browse-jobs" element={<BrowseJobsPage />} />
             <Route path="/browse-freelancers" element={<BrowseFreelancersPage/>} />
             <Route path="/job/:id" element={<JobDetailsPage />} />
+            <Route path="/jobs/:id" element={<JobDetailsPage />} />
             <Route path="/freelancer/:id" element={<FreelancerProfilePage />} />
             <Route path="/profile/:id" element={<PublicProfile />} />
             <Route path="/admin/login" element={<AdminLogin />} />
