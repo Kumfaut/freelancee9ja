@@ -1,16 +1,18 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import MilestoneTracker from "../components/MilestoneTracker";
 import ReviewModal from "../components/ReviewModal";
 import { fetchContractById } from "../api/api";
 import { useAuth } from "../context/AuthContext";
-import { Loader2,  CheckCircle } from "lucide-react"; 
+import { Loader2, CheckCircle, Globe, ShieldCheck, MessageSquare } from "lucide-react"; 
 import { Button } from "../components/ui/Button";
 import axios from "axios";
 import { toast } from "sonner";
 
 export default function ProjectWorkspace() {
+  const { t, i18n } = useTranslation();
   const { contractId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth(); 
@@ -26,16 +28,10 @@ export default function ProjectWorkspace() {
       try {
         setLoading(true);
         const res = await fetchContractById(contractId);
-        
-        console.log("RAW API RESPONSE:", res); // Check this in your console!
-
-        // This handles res.data OR res.data.data, and finds the first item if it's an array
         let rawData = res.data?.data || res.data; 
         const finalData = Array.isArray(rawData) ? rawData[0] : rawData;
-        
         setContract(finalData);
       } catch (err) {
-        console.error("Error loading workspace:", err);
         setError(true);
       } finally {
         setLoading(false);
@@ -45,7 +41,7 @@ export default function ProjectWorkspace() {
   }, [contractId]);
 
   const handleCompleteProject = async () => {
-    if (!window.confirm("Release all remaining escrow funds and close this project?")) return;
+    if (!window.confirm(t('complete_confirm'))) return;
 
     try {
       setIsProcessing(true);
@@ -54,45 +50,33 @@ export default function ProjectWorkspace() {
       });
 
       if (res.data.success) {
-        toast.success("Project completed!");
+        toast.success(t('project_completed_toast'));
         setReviewModalOpen(true); 
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || "Error completing project.");
+      toast.error(err.response?.data?.message || t('error_generic'));
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const formatCurrency = (val) => {
-    const num = Number(val);
-    return isNaN(num) ? "0" : num.toLocaleString();
-  };
-
   if (loading) return (
-    <div className="flex flex-col items-center justify-center p-20 min-h-screen bg-slate-50">
-      <Loader2 className="animate-spin text-emerald-600 w-10 h-10" />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-white">
+      <Loader2 className="animate-spin text-emerald-600 w-12 h-12 mb-4" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('syncing_workspace')}</p>
     </div>
   );
 
-  if (error || !contract) return <div className="p-20 text-center font-bold">Workspace Not Found</div>;
+  if (error || !contract) return <div className="p-20 text-center font-black uppercase text-slate-400">{t('workspace_not_found')}</div>;
 
-  // --- IMPROVED VISIBILITY LOGIC ---
-  // Add some console logs to verify it's working after the fix
-const isClient = user?.role === 'client'; // Simple check for the demo
-const canComplete = contract?.status === 'active' || contract?.status === 'funded' || contract?.status === 'completed';
-const isActive = contract?.status === 'active' || contract?.status === 'funded';
+  const isClient = user?.role === 'client';
+  const canComplete = ['active', 'funded'].includes(contract?.status);
 
-console.log("RE-CHECK:", { 
-  role: user?.role, 
-  status: contract?.status, 
-  showButton: isClient && isActive 
-});
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#F8FAFC] pb-20">
       <ReviewModal 
         isOpen={reviewModalOpen} 
-        freelancerName={contract.freelancer_name || "the freelancer"} 
+        freelancerName={contract.freelancer_name || "Freelancer"} 
         onSubmit={async (reviewData) => {
           try {
             await axios.post("http://localhost:5000/api/reviews", {
@@ -101,64 +85,92 @@ console.log("RE-CHECK:", {
               rating: reviewData.rating,
               comment: reviewData.comment
             }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-
-            toast.success("Review saved!");
+            toast.success(t('review_saved_toast'));
             setReviewModalOpen(false);
             navigate("/client-dashboard");
-          } catch (err) {
-            toast.error("Error saving review.");
-          }
+          } catch (err) { toast.error(t('error_generic')); }
         }} 
       />
-    
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${contract.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                {contract.status}
-              </span>
+
+      {/* Workspace Header */}
+      <div className="bg-white border-b border-slate-200 py-6 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="bg-emerald-50 p-3 rounded-2xl">
+                <ShieldCheck className="w-6 h-6 text-emerald-600" />
             </div>
-            <h1 className="text-3xl font-black text-slate-900 leading-tight">
-              {contract.job_title || "Project Workspace"}
-            </h1>
+            <div>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Project #{contractId.slice(-6)}</span>
+                    <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                        {contract.status}
+                    </span>
+                </div>
+                <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mt-1">
+                    {contract.job_title || t('workspace_title')}
+                </h1>
+            </div>
           </div>
 
-          <div className="flex gap-3">
-            {/* BUTTON LOGIC UPDATED HERE */}
+          <div className="flex items-center gap-3">
+             <div className="flex items-center gap-1 bg-slate-50 px-3 py-2 rounded-xl ring-1 ring-slate-200 mr-2">
+                <Globe className="w-3 h-3 text-slate-400" />
+                <select 
+                    className="text-[9px] font-black uppercase outline-none bg-transparent cursor-pointer"
+                    value={i18n.language}
+                    onChange={(e) => i18n.changeLanguage(e.target.value)}
+                >
+                    <option value="en">EN</option>
+                    <option value="pcm">PCM</option>
+                    <option value="ig">IG</option>
+                    <option value="yo">YO</option>
+                    <option value="ha">HA</option>
+                </select>
+            </div>
             {isClient && canComplete && (
               <Button 
                 onClick={handleCompleteProject}
                 disabled={isProcessing}
-                className="bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-black transition-all px-6 py-2"
+                className="bg-slate-900 hover:bg-emerald-600 text-white font-black text-[10px] uppercase tracking-widest h-12 px-6 rounded-xl shadow-xl transition-all"
               >
-                {isProcessing ? (
-                  <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 mr-2 text-emerald-400" />
-                )}
-                Complete & Close Project
+                {isProcessing ? <Loader2 className="animate-spin w-4 h-4" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                {t('complete_close_btn')}
               </Button>
             )}
           </div>
         </div>
-
-        {/* ... Rest of your UI remains the same ... */}
+      </div>
+    
+      <main className="max-w-7xl mx-auto px-6 py-10">
         <div className="flex flex-col lg:flex-row gap-8">
+          {/* Main Discussion Area */}
           <div className="flex-1 space-y-6">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 min-h-[400px]">
-              <h2 className="text-xl font-bold text-slate-900 border-b pb-4 mb-4">Project Discussion</h2>
-              <div className="h-full flex items-center justify-center text-slate-400 italic">
-                Secure workspace chat active.
+            <div className="bg-white rounded-[2.5rem] ring-1 ring-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+              <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+                <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-emerald-500" /> {t('discussion_title')}
+                </h2>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <ShieldCheck className="w-10 h-10 text-slate-200" />
+                </div>
+                <p className="text-slate-400 font-bold italic max-w-xs uppercase text-[10px] tracking-widest leading-loose">
+                  {t('secure_chat_active')}
+                </p>
               </div>
             </div>
           </div>
 
+          {/* Sidebar: Financials & Milestones */}
           <div className="w-full lg:w-[400px] space-y-6">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Contract Value</p>
-                <h2 className="text-3xl font-black text-emerald-600">
-                  ₦{formatCurrency(contract.amount || contract.bid_amount || contract.agreed_budget)}
+            <div className="bg-white p-8 rounded-[2.5rem] ring-1 ring-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('contract_value')}</p>
+                    <div className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-2 py-1 rounded">ESCROW PROTECTED</div>
+                </div>
+                <h2 className="text-4xl font-black text-slate-900 tracking-tighter">
+                  ₦{Number(contract.amount || contract.bid_amount || contract.agreed_budget).toLocaleString()}
                 </h2>
             </div>
             

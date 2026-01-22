@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
+import { useTranslation } from "react-i18next";
 import { 
   Wallet, ArrowUpFromLine, TrendingUp, ShieldCheck, 
-  History, Loader2, CheckCircle2, Info
+  History, Loader2, CheckCircle2, Info, Globe 
 } from "lucide-react";
 
 import { Button } from "../components/ui/Button";
@@ -23,6 +24,7 @@ const NIGERIAN_BANKS = [
 ];
 
 export default function WalletPage() {
+  const { t, i18n } = useTranslation();
   const { user, loading: authLoading } = useAuth();
   
   const [amount, setAmount] = useState("");
@@ -38,10 +40,9 @@ export default function WalletPage() {
   const hasVerified = useRef(false);
   const userType = user?.role || "freelancer";
 
-  // --- NEW: PAYOUT CALCULATOR LOGIC ---
   const feeDetails = useMemo(() => {
     const val = parseFloat(amount || 0);
-    const platformFee = val * 0.10; // 10% Platform Fee
+    const platformFee = val * 0.10; 
     const takeHome = val - platformFee;
     return { platformFee, takeHome };
   }, [amount]);
@@ -101,8 +102,6 @@ export default function WalletPage() {
 
   useEffect(() => {
     let timer;
-    
-    // Grab token directly from storage to be 100% sure
     const storedToken = localStorage.getItem("token");
   
     if (accNumber.length === 10 && selectedBank && storedToken) {
@@ -113,19 +112,15 @@ export default function WalletPage() {
             `http://localhost:5000/api/wallet/verify-account`,
             {
               params: { accountNumber: accNumber, bankCode: selectedBank },
-              headers: { Authorization: `Bearer ${storedToken}` } // Using the direct token
+              headers: { Authorization: `Bearer ${storedToken}` }
             }
           );
   
           if (res.data.success) {
             setVerifiedName(res.data.accountName);
-            toast.success(`Account Verified: ${res.data.accountName}`);
           }
         } catch (err) {
-          console.error("Verification failed:", err.response?.data);
           setVerifiedName("");
-          // Show the actual error from the backend
-          toast.error(err.response?.data?.message || "Verification failed");
         } finally {
           setIsVerifyingName(false);
         }
@@ -134,47 +129,32 @@ export default function WalletPage() {
       setVerifiedName("");
     }
     return () => clearTimeout(timer);
-  }, [accNumber, selectedBank]); // Token is handled inside, no need to watch user.token
+  }, [accNumber, selectedBank]);
 
   const handleAction = async (e) => {
     e.preventDefault();
-    
-    // Get token directly from localStorage to ensure it's fresh
     const token = localStorage.getItem("token") || user?.token;
-    
-    if (!token) {
-      return toast.error("You are not logged in. Please log in again.");
-    }
+    if (!token) return toast.error("Session expired.");
   
     const numAmount = Number(amount);
-    if (!numAmount || numAmount < 100) return toast.error("Minimum deposit is ₦100");
+    if (!numAmount || numAmount < 100) return toast.error("Min ₦100");
   
     setIsProcessing(true);
-  
     try {
       if (userType === "client") {
         const response = await axios.post(
           "http://localhost:5000/api/wallet/initialize",
-          { 
-            email: user.email, 
-            amount: numAmount 
-          },
-          { 
-            headers: { 
-              Authorization: `Bearer ${token}` // Using the confirmed token here
-            } 
-          }
+          { email: user.email, amount: numAmount },
+          { headers: { Authorization: `Bearer ${token}` } }
         );
-        
         if (response.data.data?.authorization_url) {
-          sessionStorage.setItem("pending_deposit", numAmount.toString());
           window.location.href = response.data.data.authorization_url;
         }
       } else {
         const res = await axios.post(
           "http://localhost:5000/api/wallet/withdraw",
           { amount: Number(amount), bankCode: selectedBank, accountNumber: accNumber },
-          { headers: { Authorization: `Bearer ${user.token}` } }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
         if (res.data.success) {
           toast.success("Withdrawal initiated!");
@@ -183,11 +163,7 @@ export default function WalletPage() {
         }
       }
     } catch (err) {
-      console.error("Action Error:", err.response);
-      const message = err.response?.status === 401 
-        ? "Session expired. Please log out and log back in." 
-        : err.response?.data?.message || "Action failed";
-      toast.error(message);
+      toast.error(err.response?.data?.message || "Action failed");
     } finally {
       setIsProcessing(false);
     }
@@ -197,7 +173,7 @@ export default function WalletPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white">
         <Loader2 className="w-10 h-10 animate-spin text-emerald-600 mb-2" />
-        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">NaijaTrust Secure Sync...</p>
+        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">{t('syncing')}</p>
       </div>
     );
   }
@@ -205,45 +181,61 @@ export default function WalletPage() {
   return (
     <div className="min-h-screen bg-slate-50/50 py-8">
       <div className="container mx-auto px-4 max-w-6xl">
-        <header className="mb-8">
+        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h1 className="text-2xl font-black flex items-center gap-2 tracking-tight uppercase">
-            <Wallet className="w-8 h-8 text-emerald-600" /> Wallet
+            <Wallet className="w-8 h-8 text-emerald-600" /> {t('wallet_title')}
           </h1>
+
+          {/* Language Selector Consistent with Dashboard */}
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-100">
+            <Globe className="w-4 h-4 text-slate-400" />
+            <select 
+              className="text-[10px] font-black uppercase tracking-widest outline-none bg-transparent cursor-pointer"
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="pcm">Pidgin</option>
+              <option value="ig">Igbo</option>
+              <option value="yo">Yoruba</option>
+              <option value="ha">Hausa</option>
+            </select>
+          </div>
         </header>
 
         {/* STAT CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <BalanceCard 
-            label={userType === "client" ? "Available Funds" : "Ready to Withdraw"} 
+            label={userType === "client" ? t('available_funds') : t('ready_withdraw')} 
             amount={walletStats.available} 
             icon={Wallet} 
             color="bg-emerald-50 text-emerald-600" 
-            sub="Liquid Balance" 
+            sub={t('liquid_balance')} 
           />
           <BalanceCard 
-            label="In Escrow" 
+            label={t('in_escrow')} 
             amount={walletStats.escrow} 
             icon={ShieldCheck} 
             color="bg-blue-50 text-blue-600" 
-            sub="Secured Funds" 
+            sub={t('secured_funds')} 
           />
           <BalanceCard 
-            label="Net Value" 
+            label={t('net_value')} 
             amount={walletStats.available + walletStats.escrow} 
             icon={TrendingUp} 
             color="bg-slate-100 text-slate-600" 
-            sub="Total Platform Equity" 
+            sub={t('total_equity')} 
           />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* WITHDRAWAL/DEPOSIT FORM */}
+          {/* FORM */}
           <div className="lg:col-span-1">
             <Card className="border-none shadow-sm overflow-hidden sticky top-8">
               <div className="h-1.5 bg-emerald-600 w-full" />
               <CardHeader>
                 <CardTitle className="text-lg font-black uppercase tracking-tight">
-                  {userType === "client" ? "Add Funds" : "Withdraw Payout"}
+                  {userType === "client" ? t('add_funds') : t('withdraw_payout')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -251,14 +243,14 @@ export default function WalletPage() {
                   {userType !== "client" && (
                     <>
                       <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-slate-400">Bank</Label>
+                        <Label className="text-[10px] font-black uppercase text-slate-400">{t('bank')}</Label>
                         <select 
                           value={selectedBank}
                           onChange={(e) => setSelectedBank(e.target.value)}
-                          className="w-full h-11 px-4 rounded-xl border border-slate-200 text-sm outline-none"
+                          className="w-full h-11 px-4 rounded-xl border border-slate-200 text-sm outline-none font-bold"
                           required
                         >
-                          <option value="">Choose Bank...</option>
+                          <option value="">{t('choose_bank')}</option>
                           {NIGERIAN_BANKS.map(bank => (
                             <option key={bank.code} value={bank.code}>{bank.name}</option>
                           ))}
@@ -266,15 +258,15 @@ export default function WalletPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-slate-400">Account Number</Label>
+                        <Label className="text-[10px] font-black uppercase text-slate-400">{t('acc_number')}</Label>
                         <Input 
                           maxLength={10}
                           value={accNumber}
                           onChange={(e) => setAccNumber(e.target.value.replace(/\D/g, ''))}
                           placeholder="0000000000"
-                          className="rounded-xl h-11"
+                          className="rounded-xl h-11 font-bold"
                         />
-                        {isVerifyingName && <p className="text-[10px] animate-pulse text-emerald-600 font-bold">Verifying Account...</p>}
+                        {isVerifyingName && <p className="text-[10px] animate-pulse text-emerald-600 font-bold">{t('verifying_acc')}</p>}
                         {verifiedName && (
                           <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-2">
                             <CheckCircle2 size={12} className="text-emerald-600" />
@@ -286,7 +278,7 @@ export default function WalletPage() {
                   )}
 
                   <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-400">Amount (₦)</Label>
+                    <Label className="text-[10px] font-black uppercase text-slate-400">{t('amount_label')} (₦)</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">₦</span>
                       <Input 
@@ -299,20 +291,19 @@ export default function WalletPage() {
                     </div>
                   </div>
 
-                  {/* --- PAYOUT CALCULATOR UI --- */}
                   {userType !== "client" && amount > 0 && (
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
                       <div className="flex justify-between text-[11px] font-medium text-slate-500">
-                        <span>Withdrawal Amount:</span>
+                        <span>{t('withdraw_payout')}:</span>
                         <span>₦{parseFloat(amount).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-[11px] font-medium text-red-500">
-                        <span className="flex items-center gap-1">Platform Fee (10%) <Info size={10}/></span>
+                        <span className="flex items-center gap-1">{t('platform_fee')} (10%) <Info size={10}/></span>
                         <span>- ₦{feeDetails.platformFee.toLocaleString()}</span>
                       </div>
                       <div className="h-px bg-slate-200 w-full my-1" />
                       <div className="flex justify-between text-xs font-black text-slate-900">
-                        <span>Final Take Home:</span>
+                        <span>{t('take_home')}:</span>
                         <span className="text-emerald-600">₦{feeDetails.takeHome.toLocaleString()}</span>
                       </div>
                     </div>
@@ -321,21 +312,21 @@ export default function WalletPage() {
                   <Button 
                     disabled={isProcessing || (userType !== 'client' && !verifiedName)} 
                     type="submit" 
-                    className="w-full h-12 bg-slate-900 hover:bg-black text-white font-black uppercase tracking-widest text-xs"
+                    className="w-full h-12 bg-slate-900 hover:bg-emerald-600 text-white font-black uppercase tracking-widest text-xs transition-all"
                   >
-                    {isProcessing ? <Loader2 className="animate-spin" size={18} /> : (userType === "client" ? "Deposit" : "Withdraw Funds")}
+                    {isProcessing ? <Loader2 className="animate-spin" size={18} /> : (userType === "client" ? t('deposit_btn') : t('withdraw_btn'))}
                   </Button>
                 </form>
               </CardContent>
             </Card>
           </div>
 
-          {/* HISTORY LOG */}
+          {/* HISTORY */}
           <div className="lg:col-span-2">
             <Card className="border-none shadow-sm min-h-[450px]">
               <CardHeader className="border-b bg-white">
                 <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                    <History size={16}/> Activity History
+                    <History size={16}/> {t('activity_history')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -363,7 +354,7 @@ export default function WalletPage() {
                 ) : (
                   <div className="py-32 text-center text-slate-300">
                     <History size={48} className="mx-auto mb-4 opacity-10" />
-                    <p className="font-bold uppercase text-[10px] tracking-widest">No transactions yet</p>
+                    <p className="font-bold uppercase text-[10px] tracking-widest">{t('no_transactions')}</p>
                   </div>
                 )}
               </CardContent>
@@ -377,7 +368,7 @@ export default function WalletPage() {
 
 function BalanceCard({ label, amount, icon: Icon, color, sub }) {
   return (
-    <Card className="border-none shadow-sm bg-white">
+    <Card className="border-none shadow-sm bg-white ring-1 ring-slate-100">
       <CardContent className="p-6">
         <div className="flex justify-between items-start mb-4">
           <div className={`p-2 rounded-xl ${color}`}><Icon size={18} /></div>

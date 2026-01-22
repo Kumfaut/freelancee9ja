@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { Toaster } from 'sonner';
-
+import { Suspense } from 'react';
 // Auth & Layout
 import { Navbar } from "./components/Header"; 
 import ProtectedRoute from "./components/ProtectedRoute"; 
@@ -55,6 +55,7 @@ export default function App() {
   }, []);
 
   return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
     <Router>
       <div className="flex flex-col min-h-screen bg-white">
         {/* Navbar is inside Router, so Link and useNavigate will work */}
@@ -129,5 +130,6 @@ export default function App() {
         </main>
       </div>
     </Router>
+    </Suspense>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next"; // Added
 import axios from "axios";
 import { 
   fetchRecommendedJobs, 
@@ -11,7 +12,6 @@ import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs";
-//import { Progress } from "../components/ui/Progress";
 import { 
   Bell, Briefcase, DollarSign, Star, 
   TrendingUp, Search, ExternalLink, 
@@ -21,6 +21,7 @@ import { useAuth } from "../context/AuthContext";
 
 // --- SUB-COMPONENT: RECOMMENDED JOBS ---
 function RecommendedJobsSection() {
+  const { t } = useTranslation(); // Added
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ function RecommendedJobsSection() {
             <Sparkles className="w-5 h-5 text-amber-600 fill-amber-600" />
           </div>
           <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
-            Matches for your skills
+            {t('matches_skills')}
           </h2>
         </div>
       </div>
@@ -90,6 +91,7 @@ function RecommendedJobsSection() {
 
 // --- MAIN DASHBOARD COMPONENT ---
 export default function FreelancerDashboard() {
+  const { t, i18n } = useTranslation(); // Added
   const { user, isLoggedIn } = useAuth();
   const navigate = useNavigate();
   
@@ -100,7 +102,6 @@ export default function FreelancerDashboard() {
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        // Fetch both contracts and the new live stats API
         const [contractsRes, statsRes] = await Promise.all([
           fetchUserContracts(),
           axios.get("http://localhost:5000/api/users/stats", {
@@ -124,25 +125,25 @@ export default function FreelancerDashboard() {
 
   const stats = [
     { 
-      label: "Total Earnings", 
+      label: t('stat_earnings'), 
       val: `₦${Number(liveStats.totalEarnings || 0).toLocaleString()}`, 
       icon: <DollarSign className="text-emerald-600 w-5 h-5"/>, 
       bg: "bg-emerald-100" 
     },
     { 
-      label: "Active Jobs", 
+      label: t('stat_active'), 
       val: activeContracts.length, 
       icon: <Briefcase className="text-blue-600 w-5 h-5"/>, 
       bg: "bg-blue-100" 
     },
     { 
-      label: "Success Rate", 
+      label: t('stat_success'), 
       val: "100%", 
       icon: <TrendingUp className="text-purple-600 w-5 h-5"/>, 
       bg: "bg-purple-100" 
     },
     { 
-      label: "Rating", 
+      label: t('stat_rating'), 
       val: liveStats.rating || "5.0", 
       icon: <Star className="text-yellow-600 fill-yellow-600 w-5 h-5"/>, 
       bg: "bg-yellow-100" 
@@ -157,12 +158,25 @@ export default function FreelancerDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-              Welcome back, {user?.full_name?.split(' ')[0] || "Freelancer"}! 👋
+              {t('dash_welcome')}, {user?.full_name?.split(' ')[0] || "Freelancer"}! 👋
             </h1>
-            <p className="text-slate-500 font-medium mt-1">Check your latest updates and project progress.</p>
+            <p className="text-slate-500 font-medium mt-1">{t('dash_subtitle')}</p>
           </div>
           
           <div className="flex items-center gap-3 w-full md:w-auto">
+            {/* Minimal Language Switcher for Dashboard */}
+            <select 
+              className="text-[10px] font-black uppercase tracking-widest border-none bg-slate-100 rounded-lg px-2 py-2 outline-none"
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+            >
+              <option value="en">EN</option>
+              <option value="pcm">PCM</option>
+              <option value="ig">IG</option>
+              <option value="yo">YO</option>
+              <option value="ha">HA</option>
+            </select>
+
             <Button variant="outline" size="icon" className="shrink-0 rounded-xl border-slate-200">
               <Bell className="h-5 w-5 text-slate-600" />
             </Button>
@@ -171,7 +185,7 @@ export default function FreelancerDashboard() {
               className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-100 font-bold px-6 rounded-xl"
               onClick={() => navigate("/search")} 
             >
-              <Search className="mr-2 h-4 w-4 stroke-[3px]"/> Find Work
+              <Search className="mr-2 h-4 w-4 stroke-[3px]"/> {t('find_work')}
             </Button>
           </div>
         </div>
@@ -199,8 +213,8 @@ export default function FreelancerDashboard() {
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="active" className="w-full">
               <TabsList className="bg-slate-200/50 border-none p-1.5 rounded-2xl mb-6 inline-flex">
-                <TabsTrigger value="active" className="rounded-xl px-6 font-bold data-[state=active]:bg-white">Active Projects</TabsTrigger>
-                <TabsTrigger value="proposals" className="rounded-xl px-6 font-bold data-[state=active]:bg-white">My Proposals</TabsTrigger>
+                <TabsTrigger value="active" className="rounded-xl px-6 font-bold data-[state=active]:bg-white">{t('tabs_active')}</TabsTrigger>
+                <TabsTrigger value="proposals" className="rounded-xl px-6 font-bold data-[state=active]:bg-white">{t('tabs_proposals')}</TabsTrigger>
               </TabsList>
               
               <TabsContent value="active" className="space-y-4 outline-none">
@@ -209,7 +223,7 @@ export default function FreelancerDashboard() {
                 ) : activeContracts.length === 0 ? (
                   <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-slate-200">
                     <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500 font-bold">No active contracts yet.</p>
+                    <p className="text-slate-500 font-bold">{t('no_contracts')}</p>
                   </div>
                 ) : (
                   activeContracts.map((contract) => (
@@ -230,7 +244,7 @@ export default function FreelancerDashboard() {
                                 variant="outline"
                                 className="border-emerald-600 text-emerald-600 font-black text-xs h-9 px-4 rounded-xl flex gap-2"
                               >
-                                Open Workspace <ExternalLink className="w-3 h-3" />
+                                {t('open_workspace')} <ExternalLink className="w-3 h-3" />
                               </Button>
                             </div>
                         </div>
@@ -239,13 +253,6 @@ export default function FreelancerDashboard() {
                   ))
                 )}
               </TabsContent>
-
-              <TabsContent value="proposals" className="outline-none mt-6">
-                <div className="text-center py-12 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                  <p className="text-slate-500 font-bold">Click to view all active bid submissions.</p>
-                  <Button variant="link" onClick={() => navigate("/proposals")} className="text-emerald-600 font-black">View Proposals Page</Button>
-                </div>
-              </TabsContent>
             </Tabs>
           </div>
 
@@ -253,19 +260,19 @@ export default function FreelancerDashboard() {
           <div className="space-y-6">
             <Card className="border-none shadow-sm ring-1 ring-slate-200/60 rounded-2xl bg-white">
               <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                <CardTitle className="text-lg font-black text-slate-800">Wallet Overview</CardTitle>
+                <CardTitle className="text-lg font-black text-slate-800">{t('wallet_overview')}</CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-500">Available Balance</span>
+                    <span className="text-sm font-bold text-slate-500">{t('available_balance')}</span>
                     <span className="font-black text-emerald-600 text-lg">₦{Number(user?.balance || 0).toLocaleString()}</span>
                   </div>
                   <Button 
                     className="w-full bg-slate-900 text-white font-black py-6 rounded-xl"
                     onClick={() => navigate("/wallet")}
                   >
-                    Withdraw Funds
+                    {t('withdraw_funds')}
                   </Button>
                 </div>
               </CardContent>
@@ -275,10 +282,10 @@ export default function FreelancerDashboard() {
               <CardContent className="p-6">
                 <div className="flex items-center gap-4 mb-4">
                   <TrendingUp className="w-5 h-5 text-white" />
-                  <h4 className="font-bold text-sm">Escrow Protection Active</h4>
+                  <h4 className="font-bold text-sm">{t('escrow_title')}</h4>
                 </div>
                 <p className="text-emerald-50 text-[11px] leading-relaxed mb-4 font-medium">
-                  Your payments are secured via the NaijaTrust Escrow system. Funds are held until work is approved.
+                  {t('escrow_desc')}
                 </p>
               </CardContent>
             </Card>
