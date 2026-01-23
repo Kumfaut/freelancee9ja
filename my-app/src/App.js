@@ -44,6 +44,7 @@ import CreateOffer from "./pages/CreateOffer";
 import AdminProtectedRoute from './components/auth/AdminProtectedRoute';
 import AdminLogin from "./components/auth/AdminLogin";
 import AdminDashboard from "./components/admin/AdminDashboard";
+import HelperBot from "./components/HelperBot";
 
 
 
@@ -64,7 +65,7 @@ export default function App() {
         {/* Toaster for global notifications */}
         <Toaster position="top-center" richColors closeButton /> 
 
-        <main className="flex-grow">
+        <main className="grow">
           <Routes>
             {/* ==========================================
                 PUBLIC ROUTES
@@ -128,6 +129,7 @@ export default function App() {
 
           </Routes>
         </main>
+        <HelperBot />
       </div>
     </Router>
     </Suspense>

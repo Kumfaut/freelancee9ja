@@ -15,7 +15,9 @@ import messageRoutes from "./routes/messageRoutes.js";
 import proposalRoutes from "./routes/proposalRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js"
+import adminRoutes from "./routes/adminRoutes.js";
+import translate from "./routes/translate.js";
+import chatbotRoutes from "./routes/chatbot.js"
 import { verifyToken } from "./middleware/authMiddleware.js";
 
 
@@ -23,6 +25,7 @@ import { verifyToken } from "./middleware/authMiddleware.js";
 dotenv.config();
 
 const app = express();
+
 
 // 1. Precise CORS Configuration
 app.use(cors({
@@ -71,6 +74,7 @@ io.on("connection", (socket) => {
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
 
+
 // 3. Registering the Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -82,6 +86,8 @@ app.use("/api/contracts", contractRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/wallet", paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/translate', translate);
+app.use('/api/chatbot', chatbotRoutes);
 app.use('/uploads', express.static('uploads'));
 
 

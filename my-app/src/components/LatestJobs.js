@@ -7,13 +7,20 @@ import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/Card";
 import { Badge } from "./ui/Badge";
 import { Button } from "./ui/Button";
-import { Clock, MapPin, Briefcase, ArrowRight, AlertCircle } from "lucide-react";
+import { Clock, MapPin, Briefcase, ArrowRight, AlertCircle, Languages } from "lucide-react";
+// Import your utility
+import { translateDynamicContent } from '../utils/translateUtil'; 
 
 export default function LatestJobs() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [errorState, setErrorState] = useState(null); // Changed name to satisfy linter
+  const [errorState, setErrorState] = useState(null);
+  
+  // 1. State to track translated versions of job descriptions
+  // We use an object where the key is the Job ID: { [jobId]: "Translated Text" }
+  const [translations, setTranslations] = useState({});
+  const [translatingId, setTranslatingId] = useState(null);
 
   useEffect(() => {
     const fetchLatestJobs = async () => {
@@ -22,7 +29,7 @@ export default function LatestJobs() {
         const response = await axios.get("http://localhost:5000/api/jobs/latest");
         const data = Array.isArray(response.data) ? response.data : response.data.data;
         setJobs(data || []);
-        setErrorState(null); // Clear error on success
+        setErrorState(null);
       } catch (err) {
         console.error("Fetch error:", err);
         setErrorState(t('jobs_error'));
@@ -30,11 +37,28 @@ export default function LatestJobs() {
         setLoading(false);
       }
     };
-
     fetchLatestJobs();
   }, [t]);
 
-  // Loading UI
+  // 2. Translation Handler
+  const handleTranslate = async (e, jobId, originalText) => {
+    e.preventDefault(); // Stop the <Link> from firing
+    e.stopPropagation();
+
+    setTranslatingId(jobId);
+    try {
+      const targetLang = i18n.language || 'en';
+      const result = await translateDynamicContent(originalText, targetLang);
+      
+      // Save translation to state
+      setTranslations(prev => ({ ...prev, [jobId]: result }));
+    } catch (error) {
+      console.error("Translation error:", error);
+    } finally {
+      setTranslatingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <section className="px-4 py-20 bg-slate-50/50">
@@ -51,7 +75,6 @@ export default function LatestJobs() {
     );
   }
 
-  // Error UI - This now uses the 'errorState' variable, fixing the ESLint error
   if (errorState) {
     return (
       <section className="px-4 py-20 bg-slate-50/50">
@@ -59,14 +82,8 @@ export default function LatestJobs() {
           <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="text-red-500" size={32} />
           </div>
-          <p className="text-slate-900 font-black uppercase text-[10px] tracking-widest mb-4">
-            {errorState}
-          </p>
-          <Button 
-            onClick={() => window.location.reload()} 
-            variant="outline" 
-            className="rounded-xl border-slate-200 font-bold text-xs"
-          >
+          <p className="text-slate-900 font-black uppercase text-[10px] tracking-widest mb-4">{errorState}</p>
+          <Button onClick={() => window.location.reload()} variant="outline" className="rounded-xl border-slate-200 font-bold text-xs">
             Try Refreshing
           </Button>
         </div>
@@ -103,9 +120,23 @@ export default function LatestJobs() {
                         ₦{Number(job.budget_max || job.budget).toLocaleString()}
                       </div>
                     </div>
+                    
+                    {/* Display Translated Description if it exists, otherwise original */}
                     <CardDescription className="line-clamp-2 text-slate-500 font-medium mt-3 leading-relaxed">
-                      {job.description}
+                      {translations[job.id] || job.description}
                     </CardDescription>
+
+                    {/* 3. The Translate Toggle Button (Only shows if NOT English) */}
+                    {i18n.language && !i18n.language.startsWith('en') && (
+                      <button 
+                        onClick={(e) => handleTranslate(e, job.id, job.description)}
+                        disabled={translatingId === job.id}
+                        className="text-[9px] font-black uppercase tracking-widest text-emerald-600 mt-2 flex items-center gap-1.5 hover:text-emerald-700 transition-colors"
+                      >
+                        <Languages size={12} />
+                        {translatingId === job.id ? "Translating..." : "See Translation"}
+                      </button>
+                    )}
                   </CardHeader>
                   
                   <CardContent className="mt-4">
@@ -117,11 +148,6 @@ export default function LatestJobs() {
                             {skill.trim()}
                           </Badge>
                       ))}
-                      {(job.skills?.split(",").length || 0) > 3 && (
-                        <span className="text-[9px] text-slate-300 font-black uppercase tracking-widest self-center ml-1">
-                          +{(job.skills?.split(",").length || 0) - 3} {t('jobs_more_skills')}
-                        </span>
-                      )}
                     </div>
                     
                     <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-[0.15em]">
@@ -149,14 +175,6 @@ export default function LatestJobs() {
               <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">{t('jobs_no_jobs')}</p>
             </div>
           )}
-        </div>
-
-        <div className="text-center mt-12 md:hidden">
-          <Link to="/search">
-            <Button className="w-full bg-slate-900 text-white font-black h-14 rounded-2xl uppercase text-[10px] tracking-widest shadow-lg shadow-slate-200">
-              {t('jobs_browse_all')}
-            </Button>
-          </Link>
         </div>
       </div>
     </section>

@@ -97,7 +97,7 @@ export default function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] bg-white overflow-hidden flex flex-col">
-      <div className="max-w-[1600px] w-full mx-auto h-full grid grid-cols-12 overflow-hidden">
+      <div className="max-w-400 w-full mx-auto h-full grid grid-cols-12 overflow-hidden">
         
         {/* SIDEBAR */}
         <div className={`${selectedChat ? 'hidden md:flex' : 'col-span-12 flex'} md:col-span-4 lg:col-span-3 border-r border-slate-100 flex-col bg-white h-full overflow-hidden`}>
@@ -115,6 +115,8 @@ export default function ChatPage() {
                   <option value="en">EN</option>
                   <option value="pcm">PCM</option>
                   <option value="yo">YO</option>
+                  <option value="ha">HA</option>
+                  <option value="ig">IG</option>
                 </select>
               </div>
             </div>

@@ -6,7 +6,9 @@ import { io } from "socket.io-client";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { ScrollArea } from "./ui/ScrollArea";
-import { Send, Paperclip, ArrowLeft, Loader2 } from "lucide-react";
+import { Send, Paperclip, ArrowLeft, Loader2, Languages } from "lucide-react"; // Added Languages
+import { useTranslation } from "react-i18next"; // Added for translation
+import { translateDynamicContent } from "../utils/translateUtil"; // Added utility
 
 const socket = io("http://localhost:5000", {
   transports: ["websocket"],
@@ -19,10 +21,15 @@ export default function ChatInterface({
   otherUser, 
   onBack 
 }) {
+  const { i18n } = useTranslation(); // Translation hook
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const messagesEndRef = useRef(null); // Ref for bottom of list
+  const messagesEndRef = useRef(null);
+
+  // --- NEW TRANSLATION STATES ---
+  const [translatedMessages, setTranslatedMessages] = useState({}); // Stores { messageId: "Translated Text" }
+  const [translatingId, setTranslatingId] = useState(null); // Tracking which message is currently loading
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
@@ -56,37 +63,46 @@ export default function ChatInterface({
     return () => socket.off("new_message", handleNewMessage);
   }, [conversationId, fetchMessages]);
 
-  // Reliable Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // --- NEW TRANSLATION HANDLER ---
+  const handleTranslateMessage = async (msgId, originalText) => {
+    // Toggle back to original if already translated
+    if (translatedMessages[msgId]) {
+      const updated = { ...translatedMessages };
+      delete updated[msgId];
+      setTranslatedMessages(updated);
+      return;
+    }
+
+    setTranslatingId(msgId);
+    try {
+      const targetLang = i18n.language || 'en';
+      const result = await translateDynamicContent(originalText, targetLang);
+      setTranslatedMessages(prev => ({ ...prev, [msgId]: result }));
+    } catch (err) {
+      console.error("❌ Translation error:", err);
+    } finally {
+      setTranslatingId(null);
+    }
+  };
+
   const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
-    
-    // 1. Capture the message and trim it
     const messageContent = newMessage.trim();
-    
-    // 2. Safety check
     if (!messageContent || !currentUser?.id) return;
-  
-    // 3. IMMEDIATELY clear the input field so the user sees it's "sent"
     setNewMessage(""); 
   
     try {
-      // 4. Send to API
       await API.post("/messages/send", {
         conversation_id: conversationId,
         receiver_id: otherUser.id,
         message_text: messageContent
       });
-      
-      // We don't manually setMessages here because the 
-      // Socket.io listener 'new_message' will do it for us.
     } catch (err) {
       console.error("❌ Failed to send message:", err);
-      setNewMessage(messageContent);
-      // 5. OPTIONAL: If it fails, put the text back so they don't lose it
       setNewMessage(messageContent); 
       alert("Message failed to send. Please try again.");
     }
@@ -99,13 +115,11 @@ export default function ChatInterface({
 
   return (
     <div className="flex flex-col h-full bg-[#F8FAFC] overflow-hidden">
-      {/* HEADER */}
       <header className="bg-white border-b border-slate-100 p-4 shrink-0 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-100 overflow-hidden uppercase">
                {otherUser.avatar?.length > 1 ? (
@@ -123,7 +137,6 @@ export default function ChatInterface({
         </div>
       </header>
 
-      {/* MESSAGES AREA - Fixed Scroll Implementation */}
       <div className="flex-1 min-h-0 relative">
         <ScrollArea className="h-full w-full">
           <div className="p-6 space-y-6">
@@ -136,26 +149,53 @@ export default function ChatInterface({
               <>
                 {messages.map((msg, index) => {
                   const isMe = String(msg.sender_id) === String(currentUser?.id);
+                  const isTranslated = !!translatedMessages[msg.id];
+
                   return (
                     <div key={msg.id || index} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                      <div className={`flex flex-col gap-1 max-w-[80%] ${isMe ? "items-end" : "items-start"}`}>
+                      <div className={`flex flex-col gap-1 max-w-[80%] group ${isMe ? "items-end" : "items-start"}`}>
                         <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all ${
                           isMe 
                           ? "bg-emerald-600 text-white rounded-tr-none font-medium" 
                           : "bg-white text-slate-700 border border-slate-100 rounded-tl-none font-medium"
                         }`}>
-                          {msg.message_text}
+                          {/* Display translated text if exists, else original */}
+                          {translatedMessages[msg.id] || msg.message_text}
+
+                          {isTranslated && (
+                            <div className="mt-2 pt-1 border-t border-emerald-500/10 flex items-center gap-1 text-[8px] font-black uppercase text-emerald-500 tracking-tighter">
+                                <Languages size={8} /> Translated
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5 px-1">
+
+                        <div className="flex items-center gap-3 px-1">
                           <span className="text-[9px] font-black text-slate-400 uppercase">
                             {formatTime(msg.created_at)}
                           </span>
+
+                          {/* TRANSLATE TOGGLE: Only for others' messages and if NOT English */}
+                          {!isMe && i18n.language !== 'en' && (
+                            <button 
+                              onClick={() => handleTranslateMessage(msg.id, msg.message_text)}
+                              disabled={translatingId === msg.id}
+                              className="text-[9px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1"
+                            >
+                              {translatingId === msg.id ? (
+                                <Loader2 size={10} className="animate-spin" />
+                              ) : (
+                                <>
+                                  <Languages size={10} />
+                                  {isTranslated ? "Show Original" : "Translate"}
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })}
-                {/* Scroll Anchor */}
                 <div ref={messagesEndRef} />
               </>
             )}
@@ -163,7 +203,6 @@ export default function ChatInterface({
         </ScrollArea>
       </div>
 
-      {/* INPUT AREA */}
       <footer className="p-6 bg-white border-t border-slate-100 shrink-0">
         <form onSubmit={handleSendMessage} className="flex items-center gap-3">
           <Button type="button" variant="ghost" size="icon" className="text-slate-400 hover:text-emerald-600">

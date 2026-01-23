@@ -1,31 +1,60 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { MapPin, Clock, Users, Star, Briefcase, Calendar, Heart } from "lucide-react";
-import { toggleSaveJob } from "../api/api"; // Ensure this is imported
+import { MapPin, Clock, Users, Star, Briefcase, Calendar, Heart, Languages } from "lucide-react";
+import { toggleSaveJob } from "../api/api";
 import { toast } from "sonner";
+import { useTranslation } from 'react-i18next';
+import { translateDynamicContent } from '../utils/translateUtil';
 
 export default function JobCard({ job, formatBudget }) {
-  // 1. Local state to track if the job is saved (defaults to job data from backend)
-  const [isSaved, setIsSaved] = useState(job.isSaved || false);
+  const { i18n, t } = useTranslation();
+  
+  // States
+  const [isSaved, setIsSaved] = useState(job?.isSaved || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [translatedDesc, setTranslatedDesc] = useState(job?.description);
+  const [isTranslating, setIsTranslating] = useState(false);
 
-  // 2. The Fix: Handle the toggle action
+  // Sync description if job changes
+  useEffect(() => {
+    setTranslatedDesc(job?.description);
+  }, [job?.description]);
+
+  const handleTranslate = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    setIsTranslating(true);
+    try {
+      // Use current i18n language (ha, ig, yo, etc.)
+      const targetLang = i18n.language || 'en';
+      const result = await translateDynamicContent(job.description, targetLang);
+      setTranslatedDesc(result);
+      toast.success("Translation complete");
+    } catch (error) {
+      console.error("Translation error:", error);
+      toast.error("Could not translate at this time");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const handleSaveToggle = async (e) => {
-    e.preventDefault(); // Prevents link navigation
-    e.stopPropagation(); // Prevents card click events
+    e.preventDefault();
+    e.stopPropagation();
     
     setIsSubmitting(true);
     try {
-      // Calls your API: API.post('/jobs/save', { job_id: jobId })
       const response = await toggleSaveJob(job.id);
-      
       if (response.data.success) {
-        setIsSaved(response.data.saved); // Updates UI based on backend 'saved' boolean
+        setIsSaved(response.data.saved);
         toast.success(response.data.message);
       }
     } catch (error) {
@@ -40,7 +69,7 @@ export default function JobCard({ job, formatBudget }) {
   };
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md transition-shadow relative overflow-hidden">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div className="flex-1">
@@ -51,14 +80,16 @@ export default function JobCard({ job, formatBudget }) {
               
               {job.featured && (
                 <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                  Featured
+                  {t('featured_label', 'Featured')}
                 </Badge>
               )}
               {job.urgent && <Badge variant="destructive" className="text-xs">Urgent</Badge>}
               {job.verified && <span className="text-emerald-600" title="Verified Client">✓</span>}
             </div>
             <div className="flex items-center gap-4 mb-2">
-              <div className="text-emerald-600 font-semibold">{formatBudget ? formatBudget(job) : `₦${job.budget_max}`}</div>
+              <div className="text-emerald-600 font-semibold">
+                {formatBudget ? formatBudget(job) : `₦${job.budget_max}`}
+              </div>
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                 {job.clientRating?.toFixed(1) || "New"}
@@ -66,7 +97,6 @@ export default function JobCard({ job, formatBudget }) {
             </div>
           </div>
 
-          {/* 3. The Functional Save Button */}
           <Button 
             variant="outline" 
             disabled={isSubmitting}
@@ -76,12 +106,27 @@ export default function JobCard({ job, formatBudget }) {
             }`}
           >
             <Heart className={`w-4 h-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
-            {isSaved ? "Saved" : "Save"}
+            {isSaved ? t('saved_label', 'Saved') : t('save_label', 'Save')}
           </Button>
         </div>
-        <CardDescription className="text-base leading-relaxed line-clamp-2">
-          {job.description}
-        </CardDescription>
+        
+        <div className="space-y-2">
+          <CardDescription className="text-base leading-relaxed line-clamp-3">
+            {translatedDesc}
+          </CardDescription>
+          
+          {/* Natural Toggle: Only shows if NOT English */}
+          {i18n.language && !i18n.language.startsWith('en') && (
+            <button 
+              onClick={handleTranslate}
+              disabled={isTranslating}
+              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 underline decoration-dotted"
+            >
+              <Languages className="w-3 h-3" />
+              {isTranslating ? "Translating..." : "See Translation"}
+            </button>
+          )}
+        </div>
       </CardHeader>
       
       <CardContent>
@@ -111,17 +156,33 @@ export default function JobCard({ job, formatBudget }) {
           </div>
         </div>
         
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center border-t pt-4">
           <div className="flex items-center gap-1">
             <Users className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">{job.proposals || 0} proposals</span>
           </div>
           
-          <Link to={`/job/${job.id}`}>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-              View & Apply
+          <div className="flex gap-2">
+             <Link to={`/job/${job.id}`}>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                    {t('view_apply_btn', 'View & Apply')}
+                </Button>
+             </Link>
+          </div>
+        </div>
+
+        {/* --- DEBUG BOX: REMOVE THIS ONCE WORKING --- */}
+        <div className="mt-6 p-3 bg-slate-100 border border-slate-300 rounded text-center">
+            <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Developer Tools</p>
+            <Button 
+                onClick={handleTranslate} 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs"
+                disabled={isTranslating}
+            >
+                {isTranslating ? "Wait..." : `Force Translate (Current: ${i18n.language})`}
             </Button>
-          </Link>
         </div>
       </CardContent>
     </Card>
