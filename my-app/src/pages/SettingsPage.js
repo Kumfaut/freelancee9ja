@@ -13,9 +13,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { useTranslation } from "react-i18next"; // Added
 
 export default function SettingsPage({ onNavigate }) {
   const { user, logout } = useAuth();
+  const { t } = useTranslation(); // Added
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
 
@@ -58,20 +60,20 @@ export default function SettingsPage({ onNavigate }) {
   });
 
   const handleSaveSettings = () => {
-    toast.success("Changes saved successfully!");
+    toast.success(t('profile_toast_success')); // Using existing toast translation
   };
 
   const handleSignOut = () => {
-    if (window.confirm("Are you sure you want to sign out?")) {
+    if (window.confirm(t('nav_logout') + "?")) {
       logout();
       if (onNavigate) onNavigate('login');
     }
   };
 
   const handleDeleteAccount = () => {
-    const confirmed = window.confirm("PERMANENT ACTION: Are you sure you want to delete your NaijaFreelance account?");
+    const confirmed = window.confirm(t('delete_account') + "?");
     if (confirmed) {
-      toast.error("Account deletion request submitted.");
+      toast.error("Action restricted.");
     }
   };
 
@@ -81,22 +83,22 @@ export default function SettingsPage({ onNavigate }) {
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
-            <p className="text-slate-500">Manage your account and preferences.</p>
+            <h1 className="text-3xl font-bold text-slate-900">{t('settings_title')}</h1>
+            <p className="text-slate-500">{t('settings_subtitle')}</p>
           </div>
           <Button variant="outline" onClick={handleSignOut} className="text-red-600 border-red-200">
             <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
+            {t('nav_logout')}
           </Button>
         </div>
 
         <Tabs defaultValue="account" className="space-y-6">
           <TabsList className="bg-white border p-1 shadow-sm grid grid-cols-5">
-            <TabsTrigger value="account">Account</TabsTrigger>
-            <TabsTrigger value="notifications">Alerts</TabsTrigger>
-            <TabsTrigger value="payment">Payment</TabsTrigger>
-            <TabsTrigger value="privacy">Privacy</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
+            <TabsTrigger value="account">{t('tab_account')}</TabsTrigger>
+            <TabsTrigger value="notifications">{t('tab_alerts')}</TabsTrigger>
+            <TabsTrigger value="payment">{t('tab_payment')}</TabsTrigger>
+            <TabsTrigger value="privacy">{t('tab_privacy')}</TabsTrigger>
+            <TabsTrigger value="security">{t('tab_security')}</TabsTrigger>
           </TabsList>
 
           {/* --- ACCOUNT TAB --- */}
@@ -104,7 +106,7 @@ export default function SettingsPage({ onNavigate }) {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-emerald-600">
-                  <User className="w-5 h-5" />Profile Details
+                  <User className="w-5 h-5" />{t('profile_details')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -117,22 +119,22 @@ export default function SettingsPage({ onNavigate }) {
                         <Camera className="w-3 h-3" />
                       </button>
                    </div>
-                   <p className="text-sm text-slate-500">Update your profile picture</p>
+                   <p className="text-sm text-slate-500">{t('profile_edit_btn')}</p>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Full Name</Label>
+                    <Label>{t('full_name')}</Label>
                     <Input 
                       value={accountSettings.name} 
                       onChange={(e) => setAccountSettings(p => ({...p, name: e.target.value}))} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email</Label>
+                    <Label>{t('email_label')}</Label>
                     <Input value={accountSettings.email} disabled />
                   </div>
                 </div>
-                <Button onClick={handleSaveSettings} className="bg-emerald-600 text-white">Save Profile</Button>
+                <Button onClick={handleSaveSettings} className="bg-emerald-600 text-white">{t('save_profile')}</Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -142,7 +144,7 @@ export default function SettingsPage({ onNavigate }) {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Bell className="w-5 h-5" />Notifications
+                  <Bell className="w-5 h-5" />{t('tab_alerts')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -169,7 +171,7 @@ export default function SettingsPage({ onNavigate }) {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" />Bank Details
+                  <CreditCard className="w-5 h-5" />{t('wallet_title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -178,7 +180,7 @@ export default function SettingsPage({ onNavigate }) {
                   <p className="text-sm text-slate-500">****{paymentSettings.accountNumber.slice(-4)}</p>
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label>Auto-Withdrawal</Label>
+                  <Label>{t('auto_withdraw')}</Label>
                   <Switch 
                     checked={paymentSettings.autoWithdraw} 
                     onCheckedChange={(v) => setPaymentSettings(p => ({...p, autoWithdraw: v}))} 
@@ -193,12 +195,12 @@ export default function SettingsPage({ onNavigate }) {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5" />Privacy
+                  <Shield className="w-5 h-5" />{t('tab_privacy')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label>Show Earnings on Profile</Label>
+                  <Label>{t('profile_visibility') || 'Profile Visibility'}</Label>
                   <Switch 
                     checked={privacySettings.showEarnings} 
                     onCheckedChange={(v) => setPrivacySettings(p => ({...p, showEarnings: v}))} 
@@ -213,12 +215,12 @@ export default function SettingsPage({ onNavigate }) {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Lock className="w-5 h-5" />Change Password
+                  <Lock className="w-5 h-5" />{t('tab_security')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative">
-                  <Input type={showCurrentPassword ? "text" : "password"} placeholder="Current Password" />
+                  <Input type={showCurrentPassword ? "text" : "password"} placeholder={t('pass_label')} />
                   <button onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-3 top-3">
                     {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -229,15 +231,15 @@ export default function SettingsPage({ onNavigate }) {
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <Button className="bg-emerald-600 text-white">Update Password</Button>
+                <Button className="bg-emerald-600 text-white">{t('update_password')}</Button>
               </CardContent>
             </Card>
 
             <Card className="border-red-200">
-              <CardHeader><CardTitle className="text-red-600">Danger Zone</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-red-600">{t('danger_zone')}</CardTitle></CardHeader>
               <CardContent>
                 <Button variant="destructive" onClick={handleDeleteAccount}>
-                  <Trash2 className="w-4 h-4 mr-2" />Delete Account
+                  <Trash2 className="w-4 h-4 mr-2" />{t('delete_account')}
                 </Button>
               </CardContent>
             </Card>

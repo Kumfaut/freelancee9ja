@@ -2,36 +2,35 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { fetchCategoryStats } from "../api/api";
 import { SimpleCard, SimpleCardContent } from './SimpleCard';
 import { 
   Code, Palette, PenTool, Megaphone, 
-  Camera, Music, BarChart3, Smartphone 
+  Camera, Music, BarChart3, Smartphone, ArrowRight
 } from 'lucide-react';
 
-// 1. We added 'id' to match your DB: 'web-development', 'design', 'writing'
 const CATEGORY_DATA = [
-  { id: 'web-development', icon: Code, name: 'Web Development', fallbackCount: '12,450 services', color: 'bg-blue-100 text-blue-600' },
-  { id: 'design', icon: Palette, name: 'UI/UX Design', fallbackCount: '8,230 services', color: 'bg-purple-100 text-purple-600' },
-  { id: 'writing', icon: PenTool, name: 'Content Writing', fallbackCount: '6,890 services', color: 'bg-green-100 text-green-600' },
-  { id: 'marketing', icon: Megaphone, name: 'Marketing', fallbackCount: '5,670 services', color: 'bg-red-100 text-red-600' },
-  { id: 'photography', icon: Camera, name: 'Photography', fallbackCount: '4,320 services', color: 'bg-yellow-100 text-yellow-600' },
-  { id: 'audio', icon: Music, name: 'Audio & Music', fallbackCount: '3,450 services', color: 'bg-pink-100 text-pink-600' },
-  { id: 'data', icon: BarChart3, name: 'Data Analysis', fallbackCount: '2,890 services', color: 'bg-indigo-100 text-indigo-600' },
-  { id: 'mobile', icon: Smartphone, name: 'Mobile Apps', fallbackCount: '4,560 services', color: 'bg-teal-100 text-teal-600' }
+  { id: 'web-development', icon: Code, fallbackCount: 12450, color: 'bg-blue-50 text-blue-600' },
+  { id: 'design', icon: Palette, fallbackCount: 8230, color: 'bg-purple-50 text-purple-600' },
+  { id: 'writing', icon: PenTool, fallbackCount: 6890, color: 'bg-emerald-50 text-emerald-600' },
+  { id: 'marketing', icon: Megaphone, fallbackCount: 5670, color: 'bg-orange-50 text-orange-600' },
+  { id: 'photography', icon: Camera, fallbackCount: 4320, color: 'bg-amber-50 text-amber-600' },
+  { id: 'audio', icon: Music, fallbackCount: 3450, color: 'bg-pink-50 text-pink-600' },
+  { id: 'data', icon: BarChart3, fallbackCount: 2890, color: 'bg-indigo-50 text-indigo-600' },
+  { id: 'mobile', icon: Smartphone, fallbackCount: 4560, color: 'bg-teal-50 text-teal-600' }
 ];
 
 export default function Categories() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [realStats, setRealStats] = useState({});
 
-  // 2. Fetch real counts from backend
   useEffect(() => {
     const getStats = async () => {
       try {
         const response = await fetchCategoryStats();
         if (response.data && response.data.data) {
-          // statsObj will look like: { "web-development": 2, "design": 2 }
           const statsObj = response.data.data.reduce((acc, curr) => {
             acc[curr.category] = curr.count;
             return acc;
@@ -39,55 +38,56 @@ export default function Categories() {
           setRealStats(statsObj);
         }
       } catch (err) {
-        console.error("Error fetching live stats, using fallbacks:", err);
+        console.error("Live stats error:", err);
       }
     };
     getStats();
   }, []);
 
-  // 3. Navigation handler - sends the ID (slug) to the search page
   const handleCategoryClick = (categoryId) => {
-    const params = new URLSearchParams();
-    params.set("category", categoryId);
-    navigate(`/search?${params.toString()}`);
+    navigate(`/search?category=${categoryId}`);
   };
 
   return (
-    <section className="py-16 bg-white">
-      <div className="container mx-auto px-4">
+    <section className="py-24 bg-white">
+      <div className="max-w-7xl mx-auto px-6">
         {/* Header Section */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Explore Popular Categories
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tight">
+            {t('cat_title')}
           </h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Find the perfect freelancer for your project across various skill categories
+          <p className="text-slate-500 max-w-2xl mx-auto font-medium">
+            {t('cat_subtitle')}
           </p>
         </div>
 
         {/* Grid Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {CATEGORY_DATA.map((category) => {
             const IconComponent = category.icon;
-            
-            // Look up count by ID (slug). If it exists, show "X jobs", else fallback
             const liveCount = realStats[category.id];
+            
+            // Format: "X active jobs" or "X services"
             const displayCount = liveCount !== undefined 
-              ? `${liveCount} active jobs` 
-              : category.fallbackCount;
+              ? `${liveCount.toLocaleString()} ${t('cat_active_jobs')}` 
+              : `${category.fallbackCount.toLocaleString()} ${t('cat_services')}`;
 
             return (
               <SimpleCard 
                 key={category.id} 
                 onClick={() => handleCategoryClick(category.id)}
-                className="hover:shadow-lg transition-shadow cursor-pointer group"
+                className="group border-none shadow-sm hover:shadow-xl hover:shadow-emerald-900/5 transition-all duration-300 cursor-pointer rounded-3xl bg-slate-50/50"
               >
-                <SimpleCardContent className="p-6 text-center">
-                  <div className={`w-16 h-16 mx-auto mb-4 rounded-xl ${category.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <IconComponent className="w-8 h-8" />
+                <SimpleCardContent className="p-8 text-center">
+                  <div className={`w-16 h-16 mx-auto mb-6 rounded-2xl ${category.color} flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-sm`}>
+                    <IconComponent size={32} />
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">{category.name}</h3>
-                  <p className="text-sm text-gray-500">{displayCount}</p>
+                  <h3 className="font-black text-slate-900 mb-2 uppercase text-xs tracking-widest leading-tight">
+                    {t(category.id)}
+                  </h3>
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">
+                    {displayCount}
+                  </p>
                 </SimpleCardContent>
               </SimpleCard>
             );
@@ -95,12 +95,12 @@ export default function Categories() {
         </div>
 
         {/* Footer Section */}
-        <div className="text-center mt-12">
+        <div className="text-center mt-16">
           <button 
             onClick={() => navigate('/search')}
-            className="text-green-600 hover:text-green-700 font-semibold flex items-center gap-2 mx-auto"
+            className="inline-flex items-center gap-2 px-8 py-3 bg-slate-900 text-white rounded-full font-black text-[10px] uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all shadow-lg"
           >
-            View All Categories →
+            {t('cat_view_all')} <ArrowRight size={14} />
           </button>
         </div>
       </div>

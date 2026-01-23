@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react"; // Added useCallback here
+import { useTranslation } from "react-i18next";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
@@ -11,9 +12,10 @@ import { Avatar, AvatarFallback } from "../components/ui/Avatar";
 import { Star, MapPin, Edit3, Save, Camera, Loader2, Globe } from "lucide-react";
 import Footer from "../components/Footer";
 import { updateProfile, getUserProfile } from "../api/api"; 
-import { toast } from "sonner"; // Using your existing toaster
+import { toast } from "sonner";
 
 export default function FreelancerProfilePage() {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -24,14 +26,11 @@ export default function FreelancerProfilePage() {
     location: "",
     hourlyRate: 0,
     bio: "",
-    skills: "" // Keeping this as a string for easy text area editing
+    skills: "" 
   });
 
-  useEffect(() => {
-    fetchLatestData();
-  }, []);
-
-  const fetchLatestData = async () => {
+  // Wrapped in useCallback to satisfy ESLint and maintain integrity
+  const fetchLatestData = useCallback(async () => {
     try {
       const res = await getUserProfile();
       if (res.data) {
@@ -45,11 +44,15 @@ export default function FreelancerProfilePage() {
         });
       }
     } catch (err) {
-      toast.error("Failed to load profile data");
+      toast.error(t('profile_toast_error'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    fetchLatestData();
+  }, [fetchLatestData]); // Dependency array now correctly includes the memoized function
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,7 +64,7 @@ export default function FreelancerProfilePage() {
     try {
       await updateProfile(profile);
       setIsEditing(false);
-      toast.success("Profile updated successfully!");
+      toast.success(t('profile_toast_success'));
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to save changes.");
     } finally {
@@ -86,30 +89,28 @@ export default function FreelancerProfilePage() {
         
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-black text-slate-900">My Profile</h1>
-            <p className="text-slate-500">Manage how clients see you on the platform</p>
+            <h1 className="text-3xl font-black text-slate-900">{t('profile_header')}</h1>
+            <p className="text-slate-500">{t('profile_subheader')}</p>
           </div>
           {!isEditing ? (
-            
-            <Button onClick={() => setIsEditing(true)} className="bg-slate-900 hover:bg-emerald-600 text-white gap-2 px-6 py-6 rounded-2xl shadow-xl shadow-emerald-100 hover:shadow-emerald-200 hover:-translate-y-1 transition-all duration-300 border-none"
-            >
-              <Edit3 className="w-4 h-4 mr-2" /> Edit Profile
+            <Button onClick={() => setIsEditing(true)} className="bg-slate-900 hover:bg-emerald-600 text-white gap-2 px-6 py-6 rounded-2xl shadow-xl shadow-emerald-100 hover:shadow-emerald-200 hover:-translate-y-1 transition-all duration-300 border-none">
+              <Edit3 className="w-4 h-4 mr-2" /> {t('profile_edit_btn')}
             </Button>
           ) : (
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving}>
-                Cancel
+                {t('profile_cancel_btn')}
               </Button>
               <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6" disabled={isSaving}>
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                Save Changes
+                {t('profile_save_btn')}
               </Button>
             </div>
           )}
         </div>
 
-        <Card className="border-none shadow-xl shadow-slate-200/50 overflow-hidden rounded-[2rem]">
-          <div className="h-32 bg-gradient-to-r from-emerald-500 to-teal-600" />
+        <Card className="border-none shadow-xl shadow-slate-200/50 overflow-hidden rounded-4xl">
+          <div className="h-32 bg-linear-to-r from-emerald-500 to-teal-600" />
           <CardContent className="p-8 md:p-12 -mt-16">
             <div className="flex flex-col md:flex-row gap-10">
               
@@ -133,33 +134,33 @@ export default function FreelancerProfilePage() {
                   <div className="grid gap-6">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="font-bold ml-1">Display Name</Label>
+                        <Label className="font-bold ml-1">{t('profile_display_name')}</Label>
                         <Input name="full_name" value={profile.full_name} onChange={handleChange} className="rounded-xl border-slate-200" />
                       </div>
                       <div className="space-y-2">
-                        <Label className="font-bold ml-1">Professional Title</Label>
+                        <Label className="font-bold ml-1">{t('profile_title')}</Label>
                         <Input name="title" value={profile.title} onChange={handleChange} className="rounded-xl border-slate-200" />
                       </div>
                     </div>
                     
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="font-bold ml-1">Location</Label>
+                        <Label className="font-bold ml-1">{t('profile_location')}</Label>
                         <Input name="location" value={profile.location} onChange={handleChange} className="rounded-xl border-slate-200" />
                       </div>
                       <div className="space-y-2">
-                        <Label className="font-bold ml-1">Hourly Rate (₦)</Label>
+                        <Label className="font-bold ml-1">{t('profile_rate')} (₦)</Label>
                         <Input name="hourlyRate" type="number" value={profile.hourlyRate} onChange={handleChange} className="rounded-xl border-slate-200" />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="font-bold ml-1">Professional Bio</Label>
-                      <Textarea name="bio" value={profile.bio} onChange={handleChange} className="min-h-[120px] rounded-2xl border-slate-200" />
+                      <Label className="font-bold ml-1">{t('profile_bio')}</Label>
+                      <Textarea name="bio" value={profile.bio} onChange={handleChange} className="min-h-30 rounded-2xl border-slate-200" />
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="font-bold ml-1">Skills (Comma separated)</Label>
+                      <Label className="font-bold ml-1">{t('profile_skills')}</Label>
                       <Input name="skills" value={profile.skills} onChange={handleChange} placeholder="e.g. React, Python, UI Design" className="rounded-xl border-slate-200" />
                     </div>
                   </div>
@@ -176,7 +177,7 @@ export default function FreelancerProfilePage() {
                       </div>
                       <div className="text-right">
                         <p className="text-3xl font-black text-slate-900">₦{Number(profile.hourlyRate).toLocaleString()}</p>
-                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Per Hour</p>
+                        <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">{t('profile_per_hour')}</p>
                       </div>
                     </div>
                     
@@ -190,14 +191,14 @@ export default function FreelancerProfilePage() {
                     </div>
 
                     <div className="mt-8">
-                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">About Me</h3>
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">{t('profile_about')}</h3>
                       <p className="text-slate-600 leading-relaxed text-lg italic">
-                        "{profile.bio || "No professional summary added yet. Click edit to introduce yourself to clients!"}"
+                        "{profile.bio || t('profile_bio_placeholder')}"
                       </p>
                     </div>
 
                     <div className="mt-10">
-                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Skills & Expertise</h3>
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">{t('profile_expertise')}</h3>
                       <div className="flex flex-wrap gap-2">
                         {profile.skills.split(',').map(skill => (
                           <Badge key={skill} className="bg-emerald-50 text-emerald-700 border-none px-4 py-2 rounded-xl font-bold">
