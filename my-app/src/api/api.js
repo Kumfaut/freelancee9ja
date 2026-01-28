@@ -96,4 +96,8 @@ export const verifyPayment = (reference) => API.get(`/payments/verify/${referenc
 
 export const getPublicProfile = (id) => API.get(`/users/public/${id}`);
 
+// ------------------- CHATBOTS -------------------
+export const askHelperBot = (data) => API.post("/chatbot/ask", data);
+export const generateProposal = (data) => API.post("/chatbot/proposal", data);
+
 export default API;

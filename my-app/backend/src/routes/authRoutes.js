@@ -1,7 +1,9 @@
 import express from "express";
 import bcrypt from "bcrypt"; // Fixed: Added import
+import jwt from "jsonwebtoken";
 import { registerUser, loginUser } from "../controllers/authController.js";
 import { verifyToken } from "../middleware/authMiddleware.js"; 
+import passport from "../config/passport.js"
 import db from "../config/db.js"; 
 
 const router = express.Router();
@@ -44,4 +46,19 @@ router.get('/fix-admin', async (req, res) => {
   }
 });
 
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+router.get("/google/callback", 
+  passport.authenticate("google", { session: false }), 
+  (req, res) => {
+    // Generate your JWT token for the user
+    const token = jwt.sign({ id: req.user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    
+    // Redirect back to frontend with the token in the URL 
+    // (Frontend will grab it and save it to localStorage)
+    res.redirect(`http://localhost:3000/login-success?token=${token}`);
+  }
+);
+
 export default router;
+

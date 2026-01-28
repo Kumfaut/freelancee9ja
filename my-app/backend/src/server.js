@@ -91,6 +91,7 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/uploads', express.static('uploads'));
 
 
+
 // Protected route example
 app.get("/api/protected", verifyToken, (req, res) => {
   res.json({ message: "You are authorized", user: req.user });

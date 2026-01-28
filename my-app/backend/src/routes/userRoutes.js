@@ -9,7 +9,8 @@ import {
   getTopFreelancers,
   getFreelancerStats,
   setupProfile,
-  upload
+  upload,
+  verifyNIN
 } from "../controllers/userController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
@@ -23,6 +24,7 @@ router.post("/login", loginUser);
 router.get("/", getUsers);
 
 router.post('/setup-profile', verifyToken, upload.single('cv'), setupProfile);
+router.post("/verify-nin", verifyToken, verifyNIN);
 
 // 1. Specific static path FIRST
 router.get("/freelancers/top", getTopFreelancers);

@@ -2,6 +2,8 @@
   "dependencies": {
     "@google-cloud/translate": "^9.3.0",
     "@google/generative-ai": "^0.24.1",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "react-markdown": "^10.1.0"
   }
 }

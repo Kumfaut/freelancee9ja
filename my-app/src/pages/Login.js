@@ -64,9 +64,9 @@ export default function LoginPage() {
   };
 
   const handleSocialLogin = (provider) => {
-    console.log(`Login with ${provider}`);
+    // Direct the browser to your backend OAuth endpoint
+    window.location.href = `http://localhost:5000/api/auth/${provider}`;
   };
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center py-12 px-4">
       

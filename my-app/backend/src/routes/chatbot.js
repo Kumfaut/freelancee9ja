@@ -1,41 +1,45 @@
 import express from "express";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateAIResponse } from "../services/aiServices.js";
 
 const router = express.Router();
 
-// 1. Initialize with the Default Key
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
+// ROUTE 1: General Assistant
 router.post("/ask", async (req, res) => {
+  const { prompt, language } = req.body;
+  
+  const systemPrompt = `You are 'NaijaFreelance Assistant'. 
+    Respond professionally in ${language === 'pcm' ? 'Pidgin' : 'English'}. 
+    Focus on Nigerian context (banking, Naira, etc.).`;
+
   try {
-    const { prompt, language } = req.body;
-    
-    // Change gemini-1.5-flash to gemini-2.0-flash
-    // Change gemini-2.0-flash to the newer preview model
-const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-
-      const formattedPrompt = `
-      You are 'NaijaFreelance Assistant'. 
-
-      CORE RULES:
-      1. ADAPTIVE TONE: If the user speaks English, reply in Professional English. If the user speaks Pidgin, you can use Pidgin. 
-      2. NIGERIAN CONTEXT: Always focus on Nigerian banking (OPay, GTB, etc.) and Naira.
-      3. FORMATTING: Use clear, bulleted lists. DO NOT use too many hashtags.
-      4. LANGUAGE SETTING: The user's current interface language is ${language}.
-
-      User: ${prompt}
-      `;
-
-    const result = await model.generateContent(formattedPrompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    res.json({ answer: text });
-    
+    const answer = await generateAIResponse(systemPrompt, prompt);
+    res.json({ answer });
   } catch (error) {
-    // This will help us see if the error changed from 404 to something else
-    console.error("❌ Gemini API Error:", error);
-    res.status(500).json({ answer: "Abeg, network don bash small. Try again!" });
+    res.status(500).json({ answer: "Omo, I no fit talk right now. Try again later!" });
+  }
+});
+
+// ROUTE 2: Professional Proposal Writer
+router.post('/proposal', async (req, res) => {
+  const { jobDescription, language } = req.body;
+
+  if (!jobDescription) {
+    return res.status(400).json({ error: "No job description provided." });
+  }
+
+  const systemPrompt = `
+    You are a high-level Business Development Consultant for Freelancee9ja.
+    Write a professional, winning freelance proposal.
+    - Language: ${language === 'pcm' ? 'Professional Pidgin' : 'Standard English'}.
+    - No 'begging' language. Focus on results.
+    - Structure: Hook, Value, Methodology, Social Proof, CTA.
+  `;
+
+  try {
+    const proposal = await generateAIResponse(systemPrompt, jobDescription);
+    res.json({ proposal });
+  } catch (error) {
+    res.status(500).json({ error: "AI service failed to cook the proposal." });
   }
 });
 

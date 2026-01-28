@@ -31,7 +31,7 @@ export default function PublicProfile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        setLoading(true);
+        setLoading(true); // This shows the spinner
         const res = await getPublicProfile(id);
         if (res.data) {
           setProfile(res.data);
@@ -44,6 +44,8 @@ export default function PublicProfile() {
       }
     };
     if (id) fetchProfile();
+    
+    return () => setProfile(null); 
   }, [id, t]);
 
   const reviews = profile?.reviews || [];
@@ -171,19 +173,42 @@ export default function PublicProfile() {
               </div>
             </Card>
 
-            <Card className="border-none shadow-sm p-6 bg-white rounded-[2rem]">
-              <h3 className="font-black text-slate-900 text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">
-                <ShieldCheck size={16} className="text-emerald-500" /> {t('profile_verification')}
-              </h3>
-              <div className="space-y-3">
-                {['Identity', 'Payment', 'Phone'].map((item) => (
-                  <div key={item} className="flex items-center justify-between text-slate-600 text-xs font-bold">
-                    <span>{item}</span>
-                    <Badge className="bg-emerald-50 text-emerald-600 text-[9px] border-none">{t('profile_verified')}</Badge>
-                  </div>
-                ))}
-              </div>
-            </Card>
+            <Card className="border-none shadow-sm p-6 bg-white rounded-4xl">
+  <h3 className="font-black text-slate-900 text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">
+    <ShieldCheck size={16} className="text-emerald-500" /> {t('profile_verification')}
+  </h3>
+  <div className="space-y-3">
+    {/* Identity Row: Linked to Database */}
+    <div className="flex items-center justify-between text-slate-600 text-xs font-bold">
+      <span>Identity</span>
+      {profile.is_verified ? (
+        <Badge className="bg-emerald-50 text-emerald-600 text-[9px] border-none">
+          {t('profile_verified')}
+        </Badge>
+      ) : (
+        <Badge className="bg-slate-100 text-slate-400 text-[9px] border-none">
+          Unverified
+        </Badge>
+      )}
+    </div>
+
+    {/* Payment Row: (Static for now, but usually verified if they've linked a bank) */}
+    <div className="flex items-center justify-between text-slate-600 text-xs font-bold">
+      <span>Payment</span>
+      <Badge className="bg-emerald-50 text-emerald-600 text-[9px] border-none">
+        {t('profile_verified')}
+      </Badge>
+    </div>
+
+    {/* Phone Row: Static */}
+    <div className="flex items-center justify-between text-slate-600 text-xs font-bold">
+      <span>Phone</span>
+      <Badge className="bg-emerald-50 text-emerald-600 text-[9px] border-none">
+        {t('profile_verified')}
+      </Badge>
+    </div>
+  </div>
+</Card>
           </div>
 
           {/* RIGHT COLUMN */}
@@ -197,17 +222,39 @@ export default function PublicProfile() {
               <div className="mt-10 pt-10 border-t border-slate-50">
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">{t('profile_skills')}</h3>
                 <div className="flex flex-wrap gap-2">
-                  {profile.skills_list?.length > 0 ? (
-                    profile.skills_list.map((skill, i) => (
-                      <Badge key={i} className="bg-slate-50 text-slate-600 border-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
-                        {skill}
-                      </Badge>
-                    ))
-                  ) : (
-                    <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
-                      {profile.title}
+              {(() => {
+                // 1. Try to get skills from skills_list or skills
+                let skillsArray = profile.skills_list || profile.skills;
+
+                // 2. If it's a string (JSON from DB), parse it
+                if (typeof skillsArray === 'string') {
+                  try {
+                    skillsArray = JSON.parse(skillsArray);
+                  } catch (e) {
+                    // Fallback for comma-separated strings if JSON.parse fails
+                    skillsArray = skillsArray.split(',').map(s => s.trim());
+                  }
+                }
+
+                // 3. Render the badges if we have an array
+                if (Array.isArray(skillsArray) && skillsArray.length > 0) {
+                  return skillsArray.map((skill, i) => (
+                    <Badge 
+                      key={i} 
+                      className="bg-slate-50 text-slate-600 border-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                    >
+                      {skill}
                     </Badge>
-                  )}
+                  ));
+                }
+
+                // 4. Fallback if no skills are found
+                return (
+                  <Badge className="bg-emerald-50 text-emerald-600 border-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                    {profile.title || "Freelancer"}
+                  </Badge>
+                );
+              })()}
                 </div>
               </div>
             </Card>
@@ -240,7 +287,7 @@ export default function PublicProfile() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-16 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-100">
+                  <div className="text-center py-16 bg-slate-50 rounded-4xl border-2 border-dashed border-slate-100">
                     <Briefcase className="mx-auto text-slate-200 mb-4" size={48} />
                     <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">{t('profile_no_reviews')}</p>
                   </div>

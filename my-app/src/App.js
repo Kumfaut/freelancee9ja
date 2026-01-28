@@ -45,6 +45,8 @@ import AdminProtectedRoute from './components/auth/AdminProtectedRoute';
 import AdminLogin from "./components/auth/AdminLogin";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import HelperBot from "./components/HelperBot";
+import ProposalBot from "./components/ProposalBot";
+import AuthSuccess from "./pages/AuthSuccess";
 
 
 
@@ -83,6 +85,7 @@ export default function App() {
             <Route path="/freelancer/:id" element={<FreelancerProfilePage />} />
             <Route path="/profile/:id" element={<PublicProfile />} />
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/auth-success" element={<AuthSuccess/>} />
             
             {/* Legal & Help */}
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
@@ -130,6 +133,7 @@ export default function App() {
           </Routes>
         </main>
         <HelperBot />
+        <ProposalBot />
       </div>
     </Router>
     </Suspense>

@@ -121,8 +121,9 @@ export const getPublicProfile = async (req, res) => {
 
   try {
     // 1. Get user details - Added 'skills' to the selection
+    // userController.js inside getPublicProfile
     const [user] = await db.execute(
-      "SELECT id, full_name, title, bio, location, hourlyRate, profile_image, cv_url, skills FROM users WHERE id = ?", 
+      "SELECT id, full_name, title, bio, location, hourlyRate, profile_image, cv_url, skills, is_verified FROM users WHERE id = ?", 
       [id]
     );
 
@@ -169,41 +170,86 @@ export const getPublicProfile = async (req, res) => {
 
 // --- SETUP PROFILE (Saves skills as JSON string) ---
 export const setupProfile = async (req, res) => {
-  const { tagline, bio, skills, hourlyRate } = req.body;
+  // Use destructuring with default nulls
+  const { 
+    tagline = null, 
+    bio = null, 
+    skills = null, 
+    hourlyRate = null 
+  } = req.body;
+  
   const userId = req.user.id;
   const cvPath = req.file ? req.file.path : null;
 
   try {
-    // If skills is an array, stringify it for the database
-    const skillsToStore = Array.isArray(skills) ? JSON.stringify(skills) : skills;
+    // 1. Fetch current data to preserve existing info
+    const [rows] = await db.execute("SELECT title, bio, skills, hourlyRate, cv_url FROM users WHERE id = ?", [userId]);
+    const user = rows[0];
 
+    // 2. Logic: If the new value is undefined/null, keep the database value. 
+    // If that's also empty, use null (never undefined).
+    const finalTagline = tagline ?? user.title ?? null;
+    const finalBio = bio ?? user.bio ?? null;
+    const finalRate = hourlyRate ?? user.hourlyRate ?? null;
+    const finalCV = cvPath ?? user.cv_url ?? null;
+
+    // Handle skills stringification safely
+    let finalSkills = user.skills ?? null;
+    if (skills) {
+      finalSkills = typeof skills === 'string' ? skills : JSON.stringify(skills);
+    }
+
+    // 3. Execute with explicit null-checks
     await db.execute(
       `UPDATE users SET 
-        title = ?, bio = ?, skills = ?, hourlyRate = ?, cv_url = ?, is_setup_complete = 1 
+        title = ?, 
+        bio = ?, 
+        skills = ?, 
+        hourlyRate = ?, 
+        cv_url = ?, 
+        is_setup_complete = 1 
       WHERE id = ?`,
-      [tagline, bio, skillsToStore, hourlyRate, cvPath, userId]
+      [finalTagline, finalBio, finalSkills, finalRate, finalCV, userId]
     );
 
-    res.status(200).json({ success: true, message: "Profile updated successfully" });
+    res.status(200).json({ 
+      success: true, 
+      message: "Profile updated successfully", 
+      cv_url: finalCV 
+    });
+
   } catch (error) {
     console.error("Setup Profile Error:", error);
     res.status(500).json({ success: false, message: "Database update failed" });
   }
 };
 // 5. UPDATE PROFILE
+// controllers/userController.js
+
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { full_name, title, location, hourlyRate, bio } = req.body;
+    // Destructure what the frontend is sending
+    const { name, title, location, hourlyRate, bio } = req.body;
 
+    // Check for undefined values and convert to null for MySQL
+    const sqlName = name ?? null;
+    const sqlTitle = title ?? null;
+    const sqlLocation = location ?? null;
+    const sqlRate = hourlyRate ?? null;
+    const sqlBio = bio ?? null;
+
+    // IMPORTANT: Check your table column names! 
+    // Is it 'full_name' or 'name' in your database?
     await db.query(
       `UPDATE users SET full_name = ?, title = ?, location = ?, hourlyRate = ?, bio = ? WHERE id = ?`,
-      [full_name, title, location, hourlyRate, bio, userId]
+      [sqlName, sqlTitle, sqlLocation, sqlRate, sqlBio, userId]
     );
 
-    return res.json({ message: "Profile updated successfully!" });
+    return res.json({ success: true, message: "Profile updated successfully!" });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error("Update Profile Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -285,3 +331,22 @@ export const getFreelancerStats = async (req, res) => {
   }
 };
 
+// controllers/userController.js
+export const verifyNIN = async (req, res) => {
+  try {
+    const { nin_number } = req.body;
+    const userId = req.user.id; // From verifyToken middleware
+
+    // Mock validation
+    if (!nin_number || nin_number.length !== 11) {
+      return res.status(400).json({ success: false, message: "Invalid NIN" });
+    }
+
+    // Update DB
+    await db.execute("UPDATE users SET is_verified = 1 WHERE id = ?", [userId]);
+
+    res.json({ success: true, message: "Identity verified successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
